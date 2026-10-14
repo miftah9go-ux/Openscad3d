@@ -525,63 +525,297 @@ function log(msg, type = '') {
   while (c.children.length > 100) c.removeChild(c.firstChild);
 }
 
-/* ============ PARSER ============ */
-function parseSCAD(code) {
-  code = code.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-
-  const tokens = tokenize(code);
-  const parser = new Parser(tokens);
-  const nodes = parser.parseBlock();
-
-  while (modelGroup.children.length) {
-    const obj = modelGroup.children.pop();
-    obj.traverse?.(o => o.geometry?.dispose?.());
-    obj.geometry?.dispose?.();
-  }
-
-  nodes.forEach(n => {
-    const mesh = buildMesh(n);
-    if (mesh) modelGroup.add(mesh);
-  });
-
-  document.getElementById('info').textContent =
-    `Objek: ${modelGroup.children.length} | Kamera: orbit`;
-}
-
+/* ============================================================
+   TOKENIZER — dengan operator aritmatika & perbandingan
+   ============================================================ */
 function tokenize(src) {
-  const re = /\s*([A-Za-z_][A-Za-z0-9_]*|\d+\.?\d*|"[^"]*"|[\[\]\(\),;=<>+\-*\/])/g;
+  const re = /\s*(\d+\.?\d*(?:[eE][+-]?\d+)?|"[^"]*"|\$[A-Za-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_]*|<=|>=|==|!=|&&|\|\||[\[\]\(\),;=<>+\-*\/%!{}:])/g;
   const tokens = [];
   let m;
   while ((m = re.exec(src)) !== null) tokens.push(m[1]);
   return tokens;
 }
 
+/* ============================================================
+   EXPRESSION EVALUATOR — untuk re-evaluate tokens dengan env baru
+   ============================================================ */
+class ExpressionEvaluator {
+  constructor(tokens, env) {
+    this.t = tokens;
+    this.i = 0;
+    this.env = env || {};
+  }
+  peek(o = 0) { return this.t[this.i + o]; }
+  next() { return this.t[this.i++]; }
+
+  parseExpression() { return this.parseLogicalOr(); }
+
+  parseLogicalOr() {
+    let l = this.parseLogicalAnd();
+    while (this.peek() === '||') { this.next(); const r = this.parseLogicalAnd(); l = (l||r)?1:0; }
+    return l;
+  }
+  parseLogicalAnd() {
+    let l = this.parseEquality();
+    while (this.peek() === '&&') { this.next(); const r = this.parseEquality(); l = (l&&r)?1:0; }
+    return l;
+  }
+  parseEquality() {
+    let l = this.parseComparison();
+    while (['==','!='].includes(this.peek())) {
+      const op = this.next(); const r = this.parseComparison();
+      l = op === '==' ? (l===r?1:0) : (l!==r?1:0);
+    }
+    return l;
+  }
+  parseComparison() {
+    let l = this.parseAdditive();
+    while (['<','>','<=','>='].includes(this.peek())) {
+      const op = this.next(); const r = this.parseAdditive();
+      switch (op) {
+        case '<':  l = l<r?1:0; break;
+        case '>':  l = l>r?1:0; break;
+        case '<=': l = l<=r?1:0; break;
+        case '>=': l = l>=r?1:0; break;
+      }
+    }
+    return l;
+  }
+  parseAdditive() {
+    let l = this.parseMultiplicative();
+    while (this.peek() === '+' || this.peek() === '-') {
+      const op = this.next(); const r = this.parseMultiplicative();
+      l = op === '+' ? l+r : l-r;
+    }
+    return l;
+  }
+  parseMultiplicative() {
+    let l = this.parseUnary();
+    while (['*','/','%'].includes(this.peek())) {
+      const op = this.next(); const r = this.parseUnary();
+      if (op === '*') l = l*r;
+      else if (op === '/') l = l/r;
+      else l = l%r;
+    }
+    return l;
+  }
+  parseUnary() {
+    if (this.peek() === '-') { this.next(); return -this.parseUnary(); }
+    if (this.peek() === '+') { this.next(); return  this.parseUnary(); }
+    if (this.peek() === '!') { this.next(); return this.parseUnary()?0:1; }
+    return this.parsePrimary();
+  }
+  parsePrimary() {
+    const tok = this.next();
+
+    // Array atau range
+    if (tok === '[') {
+      const items = [];
+      let isRange = false, step = null;
+      while (this.peek() !== ']') {
+        items.push(this.parseExpression());
+        if (this.peek() === ':') {
+          isRange = true;
+          this.next();
+          const second = this.parseExpression();
+          if (this.peek() === ':') {
+            this.next();
+            const third = this.parseExpression();
+            step = second;
+            items.push(third);
+          } else {
+            items.push(second);
+          }
+          break;
+        }
+        if (this.peek() === ',') this.next();
+        else break;
+      }
+      this.expect(']');
+      if (isRange) {
+        const start = items[0];
+        const end = items[items.length - 1];
+        const s = step !== null ? step : (start <= end ? 1 : -1);
+        return { __range__: true, start, step: s, end };
+      }
+      return items;
+    }
+
+    if (typeof tok === 'string' && /^".*"$/.test(tok)) return tok.slice(1, -1);
+
+    if (typeof tok === 'string' && /^\d/.test(tok)) return parseFloat(tok);
+
+    if (typeof tok === 'string' && /^[A-Za-z_]/.test(tok)) {
+      if (this.peek() === '(') {
+        const args = this.parseArgs();
+        return this.callFunction(tok, args);
+      }
+      if (tok in this.env) return this.env[tok];
+      if (tok === 'PI') return Math.PI;
+      return 0;
+    }
+
+    if (typeof tok === 'string' && tok.startsWith('$')) {
+      return this.env[tok] ?? 0;
+    }
+
+    if (tok === '(') {
+      const v = this.parseExpression();
+      this.expect(')');
+      return v;
+    }
+
+    const n = parseFloat(tok);
+    return isNaN(n) ? 0 : n;
+  }
+  parseArgs() {
+    this.expect('(');
+    const args = [];
+    while (this.peek() && this.peek() !== ')') {
+      args.push(this.parseExpression());
+      if (this.peek() === ',') this.next();
+      else break;
+    }
+    this.expect(')');
+    return args;
+  }
+  expect(v) {
+    const tok = this.next();
+    if (tok !== v) throw new Error(`Diharapkan '${v}', dapat '${tok ?? 'EOF'}'`);
+    return tok;
+  }
+  callFunction(name, args) {
+    switch (name) {
+      case 'sin':   return Math.sin(args[0]);
+      case 'cos':   return Math.cos(args[0]);
+      case 'tan':   return Math.tan(args[0]);
+      case 'asin':  return Math.asin(args[0]);
+      case 'acos':  return Math.acos(args[0]);
+      case 'atan':  return Math.atan(args[0]);
+      case 'atan2': return Math.atan2(args[0], args[1]);
+      case 'sqrt':  return Math.sqrt(args[0]);
+      case 'abs':   return Math.abs(args[0]);
+      case 'floor': return Math.floor(args[0]);
+      case 'ceil':  return Math.ceil(args[0]);
+      case 'round': return Math.round(args[0]);
+      case 'pow':   return Math.pow(args[0], args[1]);
+      case 'min':   return Math.min(...args);
+      case 'max':   return Math.max(...args);
+      case 'len':   return Array.isArray(args[0]) ? args[0].length : 1;
+      default:      return 0;
+    }
+  }
+}
+
+/* Helper: re-evaluate raw token list dengan env lokal */
+function evaluateTokens(tokens, env) {
+  const ev = new ExpressionEvaluator(tokens, env);
+  return ev.parseExpression();
+}
+
+/* ============================================================
+   PARSER — precedence climbing + module + for loop
+   ============================================================ */
 class Parser {
-  constructor(tokens) { this.t = tokens; this.i = 0; }
+  constructor(tokens) {
+    this.t = tokens;
+    this.i = 0;
+    this.env = { PI: Math.PI, true: 1, false: 0 };
+    this.modules = {};  // user-defined modules
+  }
 
   peek(offset = 0) { return this.t[this.i + offset]; }
   next()  { return this.t[this.i++]; }
 
   expect(v) {
     const tok = this.next();
-    if (tok !== v) throw new Error(`Diharapkan '${v}', dapat '${tok ?? 'EOF'}'`);
+    if (tok !== v) {
+      throw new Error(`Diharapkan '${v}', dapat '${tok ?? 'EOF'}'`);
+    }
     return tok;
   }
 
-  parseBlock() {
+  /* ----- Top-level ----- */
+  parseBlock(stopAtBrace = false) {
     const nodes = [];
     while (this.i < this.t.length) {
+      if (stopAtBrace && this.peek() === '}') break;
+
+      // module definition
+      if (this.peek() === 'module') {
+        this.parseModuleDefinition();
+        continue;
+      }
+
+      // Assignment variabel: identifier '=' expression ';'
+      if (/^[A-Za-z_]/.test(this.peek() || '') &&
+          this.peek(1) === '=' &&
+          this.peek(2) !== '=') {
+        const name = this.next();
+        this.next(); // '='
+        const value = this.parseExpression();
+        if (this.peek() === ';') this.next();
+        this.env[name] = value;
+        continue;
+      }
+
+      // $fn = 64; → skip
+      if ((this.peek() || '').startsWith('$') && this.peek(1) === '=') {
+        const name = this.next();
+        this.next();
+        const value = this.parseExpression();
+        if (this.peek() === ';') this.next();
+        this.env[name] = value;
+        continue;
+      }
+
       const node = this.parseStatement();
       if (node) nodes.push(node);
     }
     return nodes;
   }
 
+  parseModuleDefinition() {
+    this.expect('module');
+    const name = this.next();
+    this.expect('(');
+    const params = [];
+    while (this.peek() && this.peek() !== ')') {
+      params.push(this.next());
+      if (this.peek() === ',') this.next();
+      else break;
+    }
+    this.expect(')');
+
+    // Body
+    let body = [];
+    if (this.peek() === '{') {
+      this.next();
+      // Parse body dengan env terpisah
+      const savedEnv = Object.assign({}, this.env);
+      body = this.parseBlock(true);
+      this.expect('}');
+      this.env = savedEnv;
+    } else {
+      const c = this.parseStatement();
+      if (c) body.push(c);
+    }
+    if (this.peek() === ';') this.next();
+
+    this.modules[name] = { params, body };
+  }
+
   parseStatement() {
     const name = this.peek();
     if (!name) return null;
 
-    if (['translate','rotate','scale','color',
+    // for loop
+    if (name === 'for') {
+      return this.parseForLoop();
+    }
+
+    // Transform / warna / boolean
+    if (['translate','rotate','scale','color','mirror',
          'union','difference','intersection'].includes(name)) {
       this.next();
       let args = null;
@@ -590,10 +824,7 @@ class Parser {
       let children = [];
       if (this.peek() === '{') {
         this.next();
-        while (this.peek() && this.peek() !== '}') {
-          const c = this.parseStatement();
-          if (c) children.push(c);
-        }
+        children = this.parseBlock(true);
         this.expect('}');
       } else {
         const c = this.parseStatement();
@@ -603,6 +834,7 @@ class Parser {
       return { type: 'transform', name, args, children };
     }
 
+    // Primitif
     if (['cube','sphere','cylinder'].includes(name)) {
       this.next();
       let args = [];
@@ -611,66 +843,338 @@ class Parser {
       return { type: 'primitive', name, args };
     }
 
+    // Module call: name(args)
+    if (/^[A-Za-z_]/.test(name) && this.peek(1) === '(') {
+      const callName = this.next();
+      const args = this.parseArgs();
+      if (this.peek() === ';') this.next();
+
+      if (this.modules[callName]) {
+        return { type: 'module_call', name: callName, args, module: this.modules[callName] };
+      }
+      // unknown → skip
+      return null;
+    }
+
     while (this.peek() && ![';','}'].includes(this.peek())) this.next();
     if (this.peek() === ';') this.next();
     return null;
   }
 
+  parseForLoop() {
+    this.expect('for');
+    this.expect('(');
+    const varName = this.next();
+    this.expect('=');
+    const rangeVal = this.parseExpression();
+
+    if (!rangeVal || !rangeVal.__range__) {
+      throw new Error('for loop butuh range [start : end]');
+    }
+    this.expect(')');
+
+    // Parse body dengan env i = start
+    const savedEnv = Object.assign({}, this.env);
+    this.env[varName] = rangeVal.start;
+
+    let body = [];
+    if (this.peek() === '{') {
+      this.next();
+      body = this.parseBlock(true);
+      this.expect('}');
+    } else {
+      const c = this.parseStatement();
+      if (c) body.push(c);
+    }
+    if (this.peek() === ';') this.next();
+
+    this.env = savedEnv;
+
+    return {
+      type: 'for',
+      varName,
+      range: rangeVal,
+      body
+    };
+  }
+
   parseArgs() {
     this.expect('(');
     const args = [];
-
     while (this.peek() && this.peek() !== ')') {
-      if (/^[A-Za-z_]/.test(this.peek()) && this.peek(1) === '=') {
+      const startIdx = this.i;
+      if (/^[A-Za-z_]/.test(this.peek()) && this.peek(1) === '=' && this.peek(2) !== '=') {
         const key = this.next();
-        this.next();
-        const value = this.parseValue();
-        args.push({ key, value });
+        this.next(); // '='
+        const value = this.parseExpression();
+        const rawTokens = this.t.slice(startIdx + 2, this.i); // skip key '='
+        args.push({ key, value, rawTokens });
       } else {
-        args.push(this.parseValue());
+        const value = this.parseExpression();
+        const rawTokens = this.t.slice(startIdx, this.i);
+        args.push({ value, rawTokens });
       }
-
       if (this.peek() === ',') this.next();
       else break;
     }
-
     this.expect(')');
     return args;
   }
 
-  parseValue() {
+  /* ---------- EXPRESSION PARSER (precedence climbing) ---------- */
+  parseExpression() { return this.parseLogicalOr(); }
+
+  parseLogicalOr() {
+    let left = this.parseLogicalAnd();
+    while (this.peek() === '||') {
+      this.next();
+      const right = this.parseLogicalAnd();
+      left = (left || right) ? 1 : 0;
+    }
+    return left;
+  }
+  parseLogicalAnd() {
+    let left = this.parseEquality();
+    while (this.peek() === '&&') {
+      this.next();
+      const right = this.parseEquality();
+      left = (left && right) ? 1 : 0;
+    }
+    return left;
+  }
+  parseEquality() {
+    let left = this.parseComparison();
+    while (['==','!='].includes(this.peek())) {
+      const op = this.next();
+      const right = this.parseComparison();
+      left = op === '==' ? (left === right ? 1 : 0) : (left !== right ? 1 : 0);
+    }
+    return left;
+  }
+  parseComparison() {
+    let left = this.parseAdditive();
+    while (['<','>','<=','>='].includes(this.peek())) {
+      const op = this.next();
+      const right = this.parseAdditive();
+      switch (op) {
+        case '<':  left = left <  right ? 1 : 0; break;
+        case '>':  left = left >  right ? 1 : 0; break;
+        case '<=': left = left <= right ? 1 : 0; break;
+        case '>=': left = left >= right ? 1 : 0; break;
+      }
+    }
+    return left;
+  }
+  parseAdditive() {
+    let left = this.parseMultiplicative();
+    while (this.peek() === '+' || this.peek() === '-') {
+      const op = this.next();
+      const right = this.parseMultiplicative();
+      left = op === '+' ? left + right : left - right;
+    }
+    return left;
+  }
+  parseMultiplicative() {
+    let left = this.parseUnary();
+    while (['*','/','%'].includes(this.peek())) {
+      const op = this.next();
+      const right = this.parseUnary();
+      if (op === '*') left = left * right;
+      else if (op === '/') left = left / right;
+      else left = left % right;
+    }
+    return left;
+  }
+  parseUnary() {
+    if (this.peek() === '-') { this.next(); return -this.parseUnary(); }
+    if (this.peek() === '+') { this.next(); return  this.parseUnary(); }
+    if (this.peek() === '!') { this.next(); return this.parseUnary() ? 0 : 1; }
+    return this.parsePrimary();
+  }
+
+  parsePrimary() {
     const tok = this.next();
 
+    // Array atau range
     if (tok === '[') {
-      const arr = [];
+      const items = [];
+      let isRange = false, step = null;
       while (this.peek() !== ']') {
-        arr.push(this.parseValue());
+        items.push(this.parseExpression());
+        if (this.peek() === ':') {
+          isRange = true;
+          this.next();
+          const second = this.parseExpression();
+          if (this.peek() === ':') {
+            this.next();
+            const third = this.parseExpression();
+            step = second;
+            items.push(third);
+          } else {
+            items.push(second);
+          }
+          break;
+        }
         if (this.peek() === ',') this.next();
+        else break;
       }
       this.expect(']');
-      return arr;
+      if (isRange) {
+        const start = items[0];
+        const end = items[items.length - 1];
+        const s = step !== null ? step : (start <= end ? 1 : -1);
+        return { __range__: true, start, step: s, end };
+      }
+      return items;
     }
 
     if (typeof tok === 'string' && /^".*"$/.test(tok)) return tok.slice(1, -1);
+    if (typeof tok === 'string' && /^\d/.test(tok)) return parseFloat(tok);
+
+    if (typeof tok === 'string' && /^[A-Za-z_]/.test(tok)) {
+      if (this.peek() === '(') {
+        const args = this.parseArgs();
+        return this.callFunction(tok, args);
+      }
+      if (tok in this.env) return this.env[tok];
+      if (tok === 'PI') return Math.PI;
+      return 0;
+    }
+
+    if (typeof tok === 'string' && tok.startsWith('$')) {
+      return this.env[tok] ?? 0;
+    }
+
+    if (tok === '(') {
+      const v = this.parseExpression();
+      this.expect(')');
+      return v;
+    }
 
     const n = parseFloat(tok);
-    return isNaN(n) ? tok : n;
+    return isNaN(n) ? 0 : n;
+  }
+
+  callFunction(name, args) {
+    switch (name) {
+      case 'sin':   return Math.sin(args[0]);
+      case 'cos':   return Math.cos(args[0]);
+      case 'tan':   return Math.tan(args[0]);
+      case 'asin':  return Math.asin(args[0]);
+      case 'acos':  return Math.acos(args[0]);
+      case 'atan':  return Math.atan(args[0]);
+      case 'atan2': return Math.atan2(args[0], args[1]);
+      case 'sqrt':  return Math.sqrt(args[0]);
+      case 'abs':   return Math.abs(args[0]);
+      case 'floor': return Math.floor(args[0]);
+      case 'ceil':  return Math.ceil(args[0]);
+      case 'round': return Math.round(args[0]);
+      case 'pow':   return Math.pow(args[0], args[1]);
+      case 'min':   return Math.min(...args);
+      case 'max':   return Math.max(...args);
+      case 'len':   return Array.isArray(args[0]) ? args[0].length : 1;
+      default:      return 0;
+    }
   }
 }
 
+/* ============ PARSER ENTRY ============ */
+let globalModules = {};
+
+function parseSCAD(code) {
+  code = code.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const tokens = tokenize(code);
+  const parser = new Parser(tokens);
+  const nodes = parser.parseBlock();
+  const topEnv = Object.assign({}, parser.env);
+  globalModules = parser.modules;
+
+  while (modelGroup.children.length) {
+    const obj = modelGroup.children.pop();
+    obj.traverse?.(o => o.geometry?.dispose?.());
+    obj.geometry?.dispose?.();
+  }
+
+  nodes.forEach(n => {
+    const mesh = buildMesh(n, topEnv);
+    if (mesh) modelGroup.add(mesh);
+  });
+
+  document.getElementById('info').textContent =
+    `Objek: ${modelGroup.children.length} | Kamera: orbit`;
+}
+
+/* ---------- Re-evaluate args dengan env lokal ---------- */
+function reEvalArgs(args, env) {
+  return args.map(a => {
+    if (a && a.rawTokens) {
+      try {
+        const v = evaluateTokens(a.rawTokens, env);
+        return a.key !== undefined ? { key: a.key, value: v } : v;
+      } catch (e) {
+        return a.key !== undefined ? { key: a.key, value: a.value } : a.value;
+      }
+    }
+    return a;
+  });
+}
+
 /* ---------- Builder ---------- */
-function buildMesh(node) {
-  if (node.type === 'primitive') return buildPrimitive(node);
+function buildMesh(node, env) {
+  env = env || {};
+
+  if (node.type === 'primitive') return buildPrimitive(node, env);
 
   if (node.type === 'transform') {
-    const childNodes = node.children.map(buildMesh).filter(Boolean);
+    const evaluated = { ...node, args: reEvalArgs(node.args || [], env) };
+    const childNodes = node.children.map(c => buildMesh(c, env)).filter(Boolean);
     if (childNodes.length === 0) return null;
-
     const group = new THREE.Group();
     childNodes.forEach(c => group.add(c));
-    applyTransform(group, node);
+    applyTransform(group, evaluated);
     return group;
   }
+
+  if (node.type === 'for') {
+    const group = new THREE.Group();
+    const { start, step, end } = node.range;
+    for (let v = start; step > 0 ? v <= end : v >= end; v += step) {
+      const localEnv = Object.assign({}, env);
+      localEnv[node.varName] = v;
+      node.body.forEach(child => {
+        const mesh = buildMesh(child, localEnv);
+        if (mesh) group.add(mesh);
+      });
+    }
+    return group;
+  }
+
+  if (node.type === 'module_call') {
+    // Eval args
+    const evalArgs = reEvalArgs(node.args || [], env);
+    // Buat env lokal dengan parameter
+    const localEnv = Object.assign({}, env);
+    node.module.params.forEach((p, i) => {
+      let val = 0;
+      // Cari named arg
+      const named = evalArgs.find(a => a && a.key === p);
+      if (named) val = named.value;
+      else if (evalArgs[i] !== undefined) {
+        const pos = evalArgs[i];
+        val = (pos && pos.value !== undefined) ? pos.value : pos;
+      }
+      localEnv[p] = val;
+    });
+
+    const group = new THREE.Group();
+    node.module.body.forEach(child => {
+      const mesh = buildMesh(child, localEnv);
+      if (mesh) group.add(mesh);
+    });
+    return group;
+  }
+
   return null;
 }
 
@@ -685,29 +1189,36 @@ function getArg(args, index, key, fallback) {
   return fallback;
 }
 
-function buildPrimitive({ name, args }) {
+function buildPrimitive({ name, args }, env) {
+  const evaluated = reEvalArgs(args, env);
   let geom;
 
   if (name === 'cube') {
-    let size = getArg(args, 0, 'size', 10);
+    let size = getArg(evaluated, 0, 'size', 10);
     if (typeof size === 'number') size = [size, size, size];
     const [sx, sy, sz] = size;
     geom = new THREE.BoxGeometry(sx, sy, sz);
     geom.translate(sx/2, sy/2, sz/2);
   }
   else if (name === 'sphere') {
-    let r = getArg(args, 0, 'r', 5);
+    let r = getArg(evaluated, 0, 'r', 5);
     if (typeof r !== 'number') r = 5;
     geom = new THREE.SphereGeometry(r, 48, 32);
     geom.translate(r, r, r);
   }
   else if (name === 'cylinder') {
-    let h  = getArg(args, 0, 'h', 10);
-    let r  = getArg(args, 1, 'r',  null);
-    let r1 = getArg(args, 1, 'r1', null);
-    let r2 = getArg(args, 2, 'r2', null);
+    let h  = getArg(evaluated, 0, 'h', 10);
+    let r  = getArg(evaluated, 1, 'r',  null);
+    let r1 = getArg(evaluated, 1, 'r1', null);
+    let r2 = getArg(evaluated, 2, 'r2', null);
+    let d  = getArg(evaluated, 1, 'd',  null);
+    let d1 = getArg(evaluated, 1, 'd1', null);
+    let d2 = getArg(evaluated, 2, 'd2', null);
 
-    if (r != null) { r1 = r; r2 = r; }
+    if (d  != null) { r1 = d/2;  r2 = d/2; }
+    if (d1 != null) { r1 = d1/2; }
+    if (d2 != null) { r2 = d2/2; }
+    if (r  != null) { r1 = r; r2 = r; }
     if (r1 == null) r1 = 3;
     if (r2 == null) r2 = 3;
 
@@ -740,6 +1251,12 @@ function applyTransform(group, node) {
   else if (node.name === 'scale') {
     const v = Array.isArray(first) ? first : [1,1,1];
     group.scale.set(v[0]||1, v[1]||1, v[2]||1);
+  }
+  else if (node.name === 'mirror') {
+    const v = Array.isArray(first) ? first : [1,0,0];
+    if (v[0]) group.scale.x *= -1;
+    if (v[1]) group.scale.y *= -1;
+    if (v[2]) group.scale.z *= -1;
   }
   else if (node.name === 'color') {
     const c = Array.isArray(first) ? null : first;
@@ -794,28 +1311,58 @@ require(['vs/editor/editor.main'], () => {
   });
 
   editor = monaco.editor.create(document.getElementById('editor'), {
-    value: `// WebSCAD — contoh kode gaya OpenSCAD
-// F5 = preview cepat
-// F6 = compile final (wajib sebelum Export STL)
+    value: `// WebSCAD — Cover LED WS2812B 8 LED
+// F5 = preview, F6 = compile final, lalu Export STL
 
-color("orange")
-  cube([20, 20, 20]);
+// ---------- Parameter ----------
+led_count       = 8;
+led_pitch       = 10;
+led_dia         = 5.5;
+pcb_width       = 10;
+pcb_thickness   = 1.6;
+wall            = 2;
+clearance       = 0.4;
+height          = 12;
+hole_side_dia   = 6;
 
-color("cyan")
-translate([35, 10, 10])
-  sphere(r = 10);
+// ---------- Perhitungan ----------
+inner_length = led_pitch * (led_count - 1) + 10;
+inner_width  = pcb_width + clearance;
+outer_length = inner_length + 2 * wall;
+outer_width  = inner_width + 2 * wall;
+total_height = height + wall;
 
-color("red")
-translate([-25, 0, 0])
-  cylinder(h = 30, r = 8);
+$fn = 64;
 
-color("yellow")
-translate([20, 25, 0])
-  cylinder(h = 15, r1 = 8, r2 = 2);
+// ---------- Render ----------
+difference() {
+    // Kotak luar
+    cube([outer_length, outer_width, total_height]);
 
-color("green")
-translate([0, 30, 0])
-  cube(10);
+    // Rongga dalam
+    translate([wall, wall, wall])
+        cube([inner_length, inner_width, total_height]);
+
+    // Lubang LED di tutup atas
+    for (i = [0 : led_count-1]) {
+        translate([
+            wall + 5 + i * led_pitch,
+            outer_width / 2,
+            total_height - wall / 2
+        ])
+        cylinder(h = wall + 2, d = led_dia, center = true);
+    }
+
+    // Lubang samping kiri
+    translate([-1, outer_width / 2, wall + height / 2])
+        rotate([0, 90, 0])
+        cylinder(h = wall + 2, d = hole_side_dia);
+
+    // Lubang samping kanan
+    translate([outer_length + 1, outer_width / 2, wall + height / 2])
+        rotate([0, 90, 0])
+        cylinder(h = wall + 2, d = hole_side_dia);
+}
 `,
     language: 'cpp',
     theme: 'webscad-dark',
@@ -962,7 +1509,6 @@ async function exportSTL() {
     const exportMesh = new THREE.Mesh(compiledGeometry, new THREE.MeshStandardMaterial());
     const exporter = new STLExporter();
 
-    // Nama file dengan timestamp
     const ts = new Date().toISOString()
       .replace(/[-:T]/g, '').slice(0, 15);
     const filename = `webscad-${ts}.stl`;
@@ -982,12 +1528,9 @@ async function exportSTL() {
     const sizeKB = (blob.size / 1024).toFixed(1);
     log(`[export] Menyiapkan file: ${filename} (${sizeKB} KB, ${format})`, 'warn');
 
-    // ============================================================
-    // METODE 1: File + navigator.share (PALING ANDAL DI ANDROID)
-    // ============================================================
+    // METODE 1: File + navigator.share (Android)
     try {
       const file = new File([blob], filename, { type: 'model/stl' });
-
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -1005,15 +1548,12 @@ async function exportSTL() {
         return;
       }
       log('[export] Share tidak tersedia: ' + shareErr.message, 'warn');
-      // lanjut ke metode 2
     }
 
-    // ============================================================
-    // METODE 2: Data URL base64 (Chrome Android hormati download attr)
-    // ============================================================
+    // METODE 2: Data URL base64
     const reader = new FileReader();
     reader.onload = () => {
-      const dataUrl = reader.result;   // "data:model/stl;base64,...."
+      const dataUrl = reader.result;
       const a = document.createElement('a');
       a.href = dataUrl;
       a.download = filename;
@@ -1027,9 +1567,6 @@ async function exportSTL() {
       toast(`STL terunduh ✔ (${sizeKB} KB)`, 'success');
     };
     reader.onerror = () => {
-      // ========================================================
-      // METODE 3: Blob URL fallback terakhir
-      // ========================================================
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
