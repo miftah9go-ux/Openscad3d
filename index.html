@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WebSCAD - OpenSCAD Web Clone</title>
+
+<link rel="stylesheet" data-name="vs/editor/editor.main"
+      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.css">
+
+<style>
+  :root {
+    --bg-dark: #1e1e1e;
+    --bg-panel: #252526;
+    --bg-toolbar: #333333;
+    --border: #3c3c3c;
+    --text: #d4d4d4;
+    --accent: #0e639c;
+    --accent-hover: #1177bb;
+    --success: #4ec9b0;
+    --error: #f48771;
+    --warn: #d7ba7d;
+    --btn-h: 40px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .toolbar {
+    background: var(--bg-toolbar);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .toolbar-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 6px;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .toolbar-row::-webkit-scrollbar { display: none; }
+
+  .toolbar-row + .toolbar-row {
+    border-top: 1px solid #2a2a2a;
+  }
+
+  .logo {
+    font-weight: bold;
+    color: var(--success);
+    font-size: 14px;
+    padding: 0 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0 12px;
+    height: var(--btn-h);
+    min-width: var(--btn-h);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background 0.15s, opacity 0.15s;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  .btn:active { background: var(--accent-hover); transform: scale(0.97); }
+  .btn:hover { background: var(--accent-hover); }
+
+  .btn.secondary {
+    background: #3a3a3a;
+    color: var(--text);
+  }
+  .btn.secondary:active,
+  .btn.secondary:hover { background: #4a4a4a; }
+
+  .btn.compile {
+    background: #2d7d46;
+  }
+  .btn.compile:hover,
+  .btn.compile:active { background: #3a9c58; }
+
+  .btn.export {
+    background: #7a4a0e;
+    position: relative;
+  }
+  .btn.export:hover:not(:disabled),
+  .btn.export:active:not(:disabled) { background: #9c5f13; }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.4);
+  }
+
+  .btn.export.ready {
+    background: #b8860b;
+    animation: pulse 1.6s infinite;
+  }
+  .btn.export.ready:hover { background: #d4a017; }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(184,134,11,0.6); }
+    50%      { box-shadow: 0 0 0 6px rgba(184,134,11,0); }
+  }
+
+  .btn .label { display: inline; }
+
+  .badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--success);
+    color: #000;
+    border-radius: 8px;
+    font-size: 9px;
+    padding: 1px 5px;
+    font-weight: 700;
+    line-height: 1.2;
+    display: none;
+  }
+  .btn.export.ready .badge { display: block; }
+
+  .format-select {
+    background: #3a3a3a;
+    color: var(--text);
+    border: 1px solid #555;
+    border-radius: 5px;
+    height: var(--btn-h);
+    padding: 0 8px;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+    outline: none;
+  }
+  .format-select:hover { background: #4a4a4a; }
+
+  .mobile-tabs {
+    display: none;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .mobile-tabs button {
+    flex: 1;
+    background: transparent;
+    color: #888;
+    border: none;
+    padding: 12px 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .mobile-tabs button.active {
+    color: var(--success);
+    border-bottom-color: var(--success);
+    background: #2a2d2e;
+  }
+
+  .container {
+    display: flex;
+    height: calc(100dvh - var(--toolbar-height, 88px));
+    width: 100%;
+  }
+
+  .editor-pane {
+    width: 45%;
+    min-width: 240px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #editor {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+  }
+
+  .viewer-pane {
+    flex: 1;
+    position: relative;
+    background: #2b2b2b;
+    min-width: 0;
+  }
+
+  #viewer {
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  .console {
+    height: 90px;
+    background: #1a1a1a;
+    border-top: 1px solid var(--border);
+    padding: 6px 10px;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    overflow-y: auto;
+    color: #aaa;
+    flex-shrink: 0;
+  }
+  .console .log-success { color: var(--success); }
+  .console .log-error   { color: var(--error); }
+  .console .log-warn    { color: var(--warn); }
+
+  .info {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(0,0,0,0.65);
+    padding: 5px 9px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #ccc;
+    pointer-events: none;
+    font-family: monospace;
+  }
+
+  .status-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.7);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #888;
+    pointer-events: none;
+    font-family: monospace;
+    border: 1px solid #444;
+  }
+  .status-badge.ready {
+    color: var(--success);
+    border-color: var(--success);
+  }
+
+  .resizer {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    flex-shrink: 0;
+  }
+  .resizer:hover { background: var(--accent); }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #0e639c;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.25s ease;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    max-width: 90vw;
+    text-align: center;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+  .toast.error { background: #a02020; }
+  .toast.success { background: #2d7d46; }
+
+  @media (max-width: 768px) {
+    .container {
+      flex-direction: column;
+      height: calc(100dvh - var(--toolbar-height, 88px));
+    }
+
+    .mobile-tabs { display: flex; }
+
+    .editor-pane,
+    .viewer-pane {
+      width: 100% !important;
+      height: 100%;
+      min-width: 0;
+      border-right: none;
+    }
+
+    .resizer { display: none; }
+
+    .container[data-tab="editor"] .viewer-pane { display: none; }
+    .container[data-tab="viewer"] .editor-pane { display: none; }
+    .container[data-tab="viewer"] .console { display: none; }
+
+    .console { height: 70px; font-size: 10px; }
+
+    .btn .label { display: none; }
+    .btn { padding: 0 10px; }
+
+    .logo { font-size: 13px; padding: 0 4px; }
+
+    .format-select {
+      font-size: 11px;
+      padding: 0 4px;
+    }
+  }
+
+  @media (max-width: 400px) {
+    .btn { height: 38px; min-width: 38px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar" id="toolbar">
+  <div class="toolbar-row">
+    <span class="logo">⬢ WebSCAD</span>
+    <button class="btn" id="renderBtn" title="Preview / Render (F5)">
+      <span>▶</span><span class="label">Render</span>
+    </button>
+    <button class="btn compile" id="compileBtn" title="Compile final (F6)">
+      <span>⚙</span><span class="label">Compile (F6)</span>
+    </button>
+    <button class="btn export" id="exportBtn" title="Export STL" disabled>
+      <span>⬇</span><span class="label">Export STL</span>
+      <span class="badge">READY</span>
+    </button>
+    <select class="format-select" id="formatSelect" title="Format STL">
+      <option value="ascii">ASCII</option>
+      <option value="binary">Binary</option>
+    </select>
+    <button class="btn secondary" id="wireBtn" title="Wireframe">
+      <span>◇</span><span class="label">Wire</span>
+    </button>
+    <button class="btn secondary" id="resetBtn" title="Reset Kamera">
+      <span>⟲</span><span class="label">Reset</span>
+    </button>
+  </div>
+
+  <div class="toolbar-row">
+    <button class="btn secondary" id="selectAllBtn" title="Pilih Semua (Ctrl+A)">
+      <span>▣</span><span class="label">Pilih Semua</span>
+    </button>
+    <button class="btn secondary" id="copyBtn" title="Copy (Ctrl+C)">
+      <span>⧉</span><span class="label">Copy</span>
+    </button>
+    <button class="btn secondary" id="cutBtn" title="Cut (Ctrl+X)">
+      <span>✂</span><span class="label">Cut</span>
+    </button>
+    <button class="btn secondary" id="pasteBtn" title="Paste (Ctrl+V)">
+      <span>📋</span><span class="label">Paste</span>
+    </button>
+    <button class="btn secondary" id="undoBtn" title="Undo (Ctrl+Z)">
+      <span>↶</span><span class="label">Undo</span>
+    </button>
+    <button class="btn secondary" id="redoBtn" title="Redo (Ctrl+Y)">
+      <span>↷</span><span class="label">Redo</span>
+    </button>
+    <button class="btn secondary" id="clearBtn" title="Hapus Semua">
+      <span>🗑</span><span class="label">Clear</span>
+    </button>
+  </div>
+</div>
+
+<div class="mobile-tabs">
+  <button data-tab="editor" class="active">📝 Editor</button>
+  <button data-tab="viewer">👁 Viewer</button>
+</div>
+
+<div class="container" id="container" data-tab="editor">
+  <div class="editor-pane">
+    <div id="editor"></div>
+    <div class="console" id="console">
+      <div class="log-success">[info] WebSCAD siap. F5 = preview, F6 = compile final, lalu Export STL.</div>
+    </div>
+  </div>
+
+  <div class="resizer" id="resizer"></div>
+
+  <div class="viewer-pane">
+    <canvas id="viewer"></canvas>
+    <div class="info" id="info">Objek: 0 | Kamera: orbit</div>
+    <div class="status-badge" id="statusBadge">Belum di-compile</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ============ HELPER: TOAST ============ */
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function toast(msg, type = '') {
+  toastEl.textContent = msg;
+  toastEl.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.className = 'toast';
+  }, 2200);
+}
+
+/* ============ HELPER: TOOLBAR HEIGHT ============ */
+function updateToolbarHeight() {
+  const h = document.getElementById('toolbar').offsetHeight
+          + (document.querySelector('.mobile-tabs').offsetHeight || 0);
+  document.documentElement.style.setProperty('--toolbar-height', h + 'px');
+}
+window.addEventListener('resize', updateToolbarHeight);
+window.addEventListener('orientationchange', () => setTimeout(updateToolbarHeight, 100));
+
+/* ============ SETUP THREE.JS ============ */
+const canvas   = document.getElementById('viewer');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2b2b2b);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+camera.position.set(60, 60, 80);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.touches = {
+  ONE: THREE.TOUCH.ROTATE,
+  TWO: THREE.TOUCH.DOLLY_PAN
+};
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+dirLight.position.set(50, 100, 60);
+scene.add(dirLight);
+const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+dirLight2.position.set(-60, -30, -50);
+scene.add(dirLight2);
+
+const grid = new THREE.GridHelper(200, 40, 0x444444, 0x333333);
+scene.add(grid);
+scene.add(new THREE.AxesHelper(15));
+
+const modelGroup = new THREE.Group();
+scene.add(modelGroup);
+
+const material = new THREE.MeshStandardMaterial({
+  color: 0xffd400,
+  metalness: 0.15,
+  roughness: 0.55
+});
+
+let wireframeMode = false;
+
+/* ============ RENDER LOOP ============ */
+function resize() {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (w === 0 || h === 0) return;
+  if (canvas.width !== w * renderer.getPixelRatio() ||
+      canvas.height !== h * renderer.getPixelRatio()) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+}
+function animate() {
+  requestAnimationFrame(animate);
+  resize();
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ============ CONSOLE ============ */
+function log(msg, type = '') {
+  const c = document.getElementById('console');
+  const div = document.createElement('div');
+  if (type) div.className = 'log-' + type;
+  div.textContent = msg;
+  c.appendChild(div);
+  c.scrollTop = c.scrollHeight;
+  while (c.children.length > 100) c.removeChild(c.firstChild);
+}
+
+/* ============ PARSER ============ */
+function parseSCAD(code) {
+  code = code.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const tokens = tokenize(code);
+  const parser = new Parser(tokens);
+  const nodes = parser.parseBlock();
+
+  while (modelGroup.children.length) {
+    const obj = modelGroup.children.pop();
+    obj.traverse?.(o => o.geometry?.dispose?.());
+    obj.geometry?.dispose?.();
+  }
+
+  nodes.forEach(n => {
+    const mesh = buildMesh(n);
+    if (mesh) modelGroup.add(mesh);
+  });
+
+  document.getElementById('info').textContent =
+    `Objek: ${modelGroup.children.length} | Kamera: orbit`;
+}
+
+function tokenize(src) {
+  const re = /\s*([A-Za-z_][A-Za-z0-9_]*|\d+\.?\d*|"[^"]*"|[\[\]\(\),;=<>+\-*\/])/g;
+  const tokens = [];
+  let m;
+  while ((m = re.exec(src)) !== null) tokens.push(m[1]);
+  return tokens;
+}
+
+class Parser {
+  constructor(tokens) { this.t = tokens; this.i = 0; }
+
+  peek(offset = 0) { return this.t[this.i + offset]; }
+  next()  { return this.t[this.i++]; }
+
+  expect(v) {
+    const tok = this.next();
+    if (tok !== v) throw new Error(`Diharapkan '${v}', dapat '${tok ?? 'EOF'}'`);
+    return tok;
+  }
+
+  parseBlock() {
+    const nodes = [];
+    while (this.i < this.t.length) {
+      const node = this.parseStatement();
+      if (node) nodes.push(node);
+    }
+    return nodes;
+  }
+
+  parseStatement() {
+    const name = this.peek();
+    if (!name) return null;
+
+    if (['translate','rotate','scale','color',
+         'union','difference','intersection'].includes(name)) {
+      this.next();
+      let args = null;
+      if (this.peek() === '(') args = this.parseArgs();
+
+      let children = [];
+      if (this.peek() === '{') {
+        this.next();
+        while (this.peek() && this.peek() !== '}') {
+          const c = this.parseStatement();
+          if (c) children.push(c);
+        }
+        this.expect('}');
+      } else {
+        const c = this.parseStatement();
+        if (c) children.push(c);
+      }
+      if (this.peek() === ';') this.next();
+      return { type: 'transform', name, args, children };
+    }
+
+    if (['cube','sphere','cylinder'].includes(name)) {
+      this.next();
+      let args = [];
+      if (this.peek() === '(') args = this.parseArgs();
+      if (this.peek() === ';') this.next();
+      return { type: 'primitive', name, args };
+    }
+
+    while (this.peek() && ![';','}'].includes(this.peek())) this.next();
+    if (this.peek() === ';') this.next();
+    return null;
+  }
+
+  parseArgs() {
+    this.expect('(');
+    const args = [];
+
+    while (this.peek() && this.peek() !== ')') {
+      if (/^[A-Za-z_]/.test(this.peek()) && this.peek(1) === '=') {
+        const key = this.next();
+        this.next();
+        const value = this.parseValue();
+        args.push({ key, value });
+      } else {
+        args.push(this.parseValue());
+      }
+
+      if (this.peek() === ',') this.next();
+      else break;
+    }
+
+    this.expect(')');
+    return args;
+  }
+
+  parseValue() {
+    const tok = this.next();
+
+    if (tok === '[') {
+      const arr = [];
+      while (this.peek() !== ']') {
+        arr.push(this.parseValue());
+        if (this.peek() === ',') this.next();
+      }
+      this.expect(']');
+      return arr;
+    }
+
+    if (typeof tok === 'string' && /^".*"$/.test(tok)) return tok.slice(1, -1);
+
+    const n = parseFloat(tok);
+    return isNaN(n) ? tok : n;
+  }
+}
+
+/* ---------- Builder ---------- */
+function buildMesh(node) {
+  if (node.type === 'primitive') return buildPrimitive(node);
+
+  if (node.type === 'transform') {
+    const childNodes = node.children.map(buildMesh).filter(Boolean);
+    if (childNodes.length === 0) return null;
+
+    const group = new THREE.Group();
+    childNodes.forEach(c => group.add(c));
+    applyTransform(group, node);
+    return group;
+  }
+  return null;
+}
+
+function getArg(args, index, key, fallback) {
+  if (key) {
+    for (const a of args) {
+      if (a && typeof a === 'object' && a.key === key) return a.value;
+    }
+  }
+  const positional = args.filter(a => typeof a !== 'object' || a.key === undefined);
+  if (positional[index] !== undefined) return positional[index];
+  return fallback;
+}
+
+function buildPrimitive({ name, args }) {
+  let geom;
+
+  if (name === 'cube') {
+    let size = getArg(args, 0, 'size', 10);
+    if (typeof size === 'number') size = [size, size, size];
+    const [sx, sy, sz] = size;
+    geom = new THREE.BoxGeometry(sx, sy, sz);
+    geom.translate(sx/2, sy/2, sz/2);
+  }
+  else if (name === 'sphere') {
+    let r = getArg(args, 0, 'r', 5);
+    if (typeof r !== 'number') r = 5;
+    geom = new THREE.SphereGeometry(r, 48, 32);
+    geom.translate(r, r, r);
+  }
+  else if (name === 'cylinder') {
+    let h  = getArg(args, 0, 'h', 10);
+    let r  = getArg(args, 1, 'r',  null);
+    let r1 = getArg(args, 1, 'r1', null);
+    let r2 = getArg(args, 2, 'r2', null);
+
+    if (r != null) { r1 = r; r2 = r; }
+    if (r1 == null) r1 = 3;
+    if (r2 == null) r2 = 3;
+
+    geom = new THREE.CylinderGeometry(r2, r1, h, 48, 1);
+    geom.rotateX(Math.PI / 2);
+    geom.translate(0, 0, h / 2);
+  }
+
+  if (!geom) return null;
+  return new THREE.Mesh(geom, material);
+}
+
+function applyTransform(group, node) {
+  const args = node.args || [];
+  const first = args.find(a => typeof a !== 'object' || a.key === undefined);
+
+  if (node.name === 'translate') {
+    const v = Array.isArray(first) ? first : [0,0,0];
+    group.position.set(v[0]||0, v[1]||0, v[2]||0);
+  }
+  else if (node.name === 'rotate') {
+    const v = Array.isArray(first) ? first : [0,0,0];
+    group.rotation.set(
+      THREE.MathUtils.degToRad(v[0]||0),
+      THREE.MathUtils.degToRad(v[1]||0),
+      THREE.MathUtils.degToRad(v[2]||0),
+      'ZYX'
+    );
+  }
+  else if (node.name === 'scale') {
+    const v = Array.isArray(first) ? first : [1,1,1];
+    group.scale.set(v[0]||1, v[1]||1, v[2]||1);
+  }
+  else if (node.name === 'color') {
+    const c = Array.isArray(first) ? null : first;
+    const map = {
+      red:0xff0000, green:0x00ff00, blue:0x0000ff,
+      yellow:0xffff00, cyan:0x00ffff, magenta:0xff00ff,
+      orange:0xffa500, white:0xffffff, black:0x000000,
+      gray:0x808080, grey:0x808080, pink:0xffc0cb,
+      purple:0x800080, brown:0xa52a2a, lime:0x00ff00,
+      navy:0x000080, teal:0x008080, tan:0xd2b48c,
+      silver:0xc0c0c0, gold:0xffd700, crimson:0xdc143c,
+      darkslategray:0x2f4f4f, dimgray:0x696969,
+      deepskyblue:0x00bfff, saddlebrown:0x8b4513,
+      steelblue:0x4682b4, firebrick:0xb22222
+    };
+    let hex = 0xffd400;
+    if (typeof c === 'string' && map[c.toLowerCase()] !== undefined) {
+      hex = map[c.toLowerCase()];
+    }
+    group.traverse(o => {
+      if (o.isMesh) {
+        o.material = new THREE.MeshStandardMaterial({
+          color: hex, metalness: 0.15, roughness: 0.55
+        });
+      }
+    });
+  }
+}
+
+/* ============ MONACO EDITOR ============ */
+let editor = null;
+const isMobile = () => window.innerWidth <= 768;
+
+require.config({
+  paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }
+});
+require(['vs/editor/editor.main'], () => {
+  monaco.editor.defineTheme('webscad-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: '4ec9b0' },
+      { token: 'number',  foreground: 'b5cea8' },
+      { token: 'string',  foreground: 'ce9178' },
+      { token: 'comment', foreground: '6a9955' }
+    ],
+    colors: {
+      'editor.background': '#1e1e1e',
+      'editor.lineHighlightBackground': '#2a2d2e',
+      'editor.lineNumberForeground': '#858585'
+    }
+  });
+
+  editor = monaco.editor.create(document.getElementById('editor'), {
+    value: `// WebSCAD — contoh kode gaya OpenSCAD
+// F5 = preview cepat
+// F6 = compile final (wajib sebelum Export STL)
+
+color("orange")
+  cube([20, 20, 20]);
+
+color("cyan")
+translate([35, 10, 10])
+  sphere(r = 10);
+
+color("red")
+translate([-25, 0, 0])
+  cylinder(h = 30, r = 8);
+
+color("yellow")
+translate([20, 25, 0])
+  cylinder(h = 15, r1 = 8, r2 = 2);
+
+color("green")
+translate([0, 30, 0])
+  cube(10);
+`,
+    language: 'cpp',
+    theme: 'webscad-dark',
+    automaticLayout: true,
+    fontSize: isMobile() ? 13 : 14,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontFamily: 'Consolas, monospace',
+    wordWrap: 'on',
+    lineNumbers: 'on',
+    contextmenu: true,
+    quickSuggestions: false
+  });
+
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, render);
+  editor.addCommand(monaco.KeyCode.F5, render);
+  editor.addCommand(monaco.KeyCode.F6, compileFinal);
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA, () => {
+    const model = editor.getModel();
+    editor.setSelection(model.getFullModelRange());
+    editor.focus();
+  });
+
+  log('[info] Editor siap. F5 = preview, F6 = compile final.', 'success');
+  updateToolbarHeight();
+
+  setTimeout(render, 500);
+});
+
+/* ============ STATE EXPORT ============ */
+let compiledGeometry = null;
+let compiledMeshCount = 0;
+
+function setExportReady(ready, info = '') {
+  const btn = document.getElementById('exportBtn');
+  const badge = document.getElementById('statusBadge');
+
+  if (ready) {
+    btn.disabled = false;
+    btn.classList.add('ready');
+    badge.textContent = `✔ Siap export${info ? ' • ' + info : ''}`;
+    badge.classList.add('ready');
+  } else {
+    btn.disabled = true;
+    btn.classList.remove('ready');
+    badge.textContent = 'Belum di-compile';
+    badge.classList.remove('ready');
+  }
+}
+
+/* ============ AKSI RENDER (F5) ============ */
+function render() {
+  if (!editor) { toast('Editor belum siap', 'error'); return; }
+  const code = editor.getValue();
+  try {
+    parseSCAD(code);
+    log('[render] Preview berhasil ✔', 'success');
+    toast('Preview sukses ✔', 'success');
+
+    if (compiledGeometry) {
+      compiledGeometry.dispose?.();
+      compiledGeometry = null;
+      setExportReady(false);
+      log('[info] Perubahan terdeteksi — silakan F6 lagi sebelum export', 'warn');
+    }
+
+    if (isMobile()) switchTab('viewer');
+  } catch (e) {
+    log('[error] ' + e.message, 'error');
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+/* ============ AKSI COMPILE (F6) ============ */
+function compileFinal() {
+  if (!editor) { toast('Editor belum siap', 'error'); return; }
+  const code = editor.getValue();
+
+  log('[F6] Memulai compile final...', 'warn');
+
+  try {
+    parseSCAD(code);
+    const t0 = performance.now();
+
+    const geometries = [];
+    let triangleCount = 0;
+
+    modelGroup.updateMatrixWorld(true);
+    modelGroup.traverse(obj => {
+      if (obj.isMesh && obj.geometry) {
+        const g = obj.geometry.clone();
+        g.applyMatrix4(obj.matrixWorld);
+        if (!g.attributes.normal) g.computeVertexNormals();
+        geometries.push(g);
+        triangleCount += g.index
+          ? g.index.count / 3
+          : g.attributes.position.count / 3;
+      }
+    });
+
+    if (geometries.length === 0) {
+      throw new Error('Tidak ada objek untuk di-compile');
+    }
+
+    const merged = mergeGeometries(geometries, false);
+    if (!merged) {
+      throw new Error('Gagal merge geometri (atribut tidak cocok)');
+    }
+    merged.computeVertexNormals();
+    merged.computeBoundingBox();
+
+    if (compiledGeometry) compiledGeometry.dispose?.();
+    compiledGeometry = merged;
+    compiledMeshCount = geometries.length;
+
+    const t1 = performance.now();
+    const bb = merged.boundingBox;
+    const size = new THREE.Vector3().subVectors(bb.max, bb.min);
+
+    log(`[F6] ✔ Compile selesai dalam ${(t1-t0).toFixed(1)} ms`, 'success');
+    log(`[F6]   ${geometries.length} mesh • ${triangleCount.toFixed(0)} triangle`, 'success');
+    log(`[F6]   Bounding box: ${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm`, 'success');
+
+    setExportReady(true, `${triangleCount.toFixed(0)} tri`);
+    toast('Compile sukses! Tombol Export STL aktif ✔', 'success');
+
+  } catch (e) {
+    log('[F6 error] ' + e.message, 'error');
+    toast('Compile gagal: ' + e.message, 'error');
+    setExportReady(false);
+  }
+}
+
+/* ============ EXPORT STL (FIXED UNTUK ANDROID) ============ */
+async function exportSTL() {
+  if (!compiledGeometry) {
+    toast('Tekan F6 (Compile) dulu sebelum export!', 'error');
+    log('[warn] Export ditolak — belum compile final', 'warn');
+    return;
+  }
+
+  try {
+    const format = document.getElementById('formatSelect').value;
+    const exportMesh = new THREE.Mesh(compiledGeometry, new THREE.MeshStandardMaterial());
+    const exporter = new STLExporter();
+
+    // Nama file dengan timestamp
+    const ts = new Date().toISOString()
+      .replace(/[-:T]/g, '').slice(0, 15);
+    const filename = `webscad-${ts}.stl`;
+
+    let blob;
+    if (format === 'ascii') {
+      const stlString = exporter.parse(exportMesh, { binary: false });
+      blob = new Blob([stlString], { type: 'model/stl' });
+    } else {
+      const dataView = exporter.parse(exportMesh, { binary: true });
+      const uint8 = new Uint8Array(
+        dataView.buffer, dataView.byteOffset, dataView.byteLength
+      );
+      blob = new Blob([uint8], { type: 'model/stl' });
+    }
+
+    const sizeKB = (blob.size / 1024).toFixed(1);
+    log(`[export] Menyiapkan file: ${filename} (${sizeKB} KB, ${format})`, 'warn');
+
+    // ============================================================
+    // METODE 1: File + navigator.share (PALING ANDAL DI ANDROID)
+    // ============================================================
+    try {
+      const file = new File([blob], filename, { type: 'model/stl' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: filename,
+          text: 'Model 3D dari WebSCAD'
+        });
+        log(`[export] ✔ STL dibagikan via Share — ${filename} (${sizeKB} KB)`, 'success');
+        toast(`Pilih "Save to Files" untuk simpan ${filename}`, 'success');
+        return;
+      }
+    } catch (shareErr) {
+      if (shareErr.name === 'AbortError') {
+        log('[export] Share dibatalkan user', 'warn');
+        toast('Share dibatalkan', 'error');
+        return;
+      }
+      log('[export] Share tidak tersedia: ' + shareErr.message, 'warn');
+      // lanjut ke metode 2
+    }
+
+    // ============================================================
+    // METODE 2: Data URL base64 (Chrome Android hormati download attr)
+    // ============================================================
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;   // "data:model/stl;base64,...."
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => document.body.removeChild(a), 300);
+
+      log(`[export] ✔ STL via Data URL — ${filename} (${sizeKB} KB)`, 'success');
+      toast(`STL terunduh ✔ (${sizeKB} KB)`, 'success');
+    };
+    reader.onerror = () => {
+      // ========================================================
+      // METODE 3: Blob URL fallback terakhir
+      // ========================================================
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 300);
+      log(`[export] ✔ STL via Blob URL (fallback) — ${filename}`, 'success');
+      toast(`STL terunduh ✔ (${sizeKB} KB)`, 'success');
+    };
+    reader.readAsDataURL(blob);
+
+  } catch (e) {
+    log('[export error] ' + e.message, 'error');
+    console.error(e);
+    toast('Export gagal: ' + e.message, 'error');
+  }
+}
+
+/* ============ TOMBOL EVENT ============ */
+document.getElementById('renderBtn').onclick = render;
+document.getElementById('compileBtn').onclick = compileFinal;
+document.getElementById('exportBtn').onclick = exportSTL;
+
+document.getElementById('wireBtn').onclick = () => {
+  wireframeMode = !wireframeMode;
+  modelGroup.traverse(o => {
+    if (o.isMesh && o.material && !Array.isArray(o.material)) {
+      o.material.wireframe = wireframeMode;
+    }
+  });
+  log(`[view] Wireframe ${wireframeMode ? 'ON' : 'OFF'}`);
+  toast('Wireframe ' + (wireframeMode ? 'ON' : 'OFF'));
+};
+
+document.getElementById('resetBtn').onclick = () => {
+  camera.position.set(60, 60, 80);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  log('[view] Kamera direset');
+  toast('Kamera direset');
+};
+
+/* ============ AKSI EDIT ============ */
+document.getElementById('selectAllBtn').onclick = () => {
+  if (!editor) return;
+  const model = editor.getModel();
+  editor.setSelection(model.getFullModelRange());
+  editor.focus();
+  toast('Semua dipilih');
+};
+
+document.getElementById('copyBtn').onclick = async () => {
+  if (!editor) return;
+  const sel = editor.getSelection();
+  const text = editor.getModel().getValueInRange(sel);
+  if (!text) { toast('Tidak ada yang dipilih', 'error'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Tersalin ✔', 'success');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+    toast('Tersalin (fallback)', 'success');
+  }
+};
+
+document.getElementById('cutBtn').onclick = async () => {
+  if (!editor) return;
+  const sel = editor.getSelection();
+  const text = editor.getModel().getValueInRange(sel);
+  if (!text) { toast('Tidak ada yang dipilih', 'error'); return; }
+  try { await navigator.clipboard.writeText(text); } catch {}
+  editor.executeEdits('cut', [{ range: sel, text: '' }]);
+  toast('Terpotong ✔', 'success');
+};
+
+document.getElementById('pasteBtn').onclick = async () => {
+  if (!editor) return;
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) { toast('Clipboard kosong', 'error'); return; }
+    const sel = editor.getSelection();
+    editor.executeEdits('paste', [{ range: sel, text, forceMoveMarkers: true }]);
+    editor.focus();
+    toast('Berhasil paste ✔', 'success');
+    setTimeout(render, 200);
+  } catch (e) {
+    toast('Izin clipboard ditolak. Pakai Ctrl+V manual.', 'error');
+    log('[warn] Clipboard API gagal: ' + e.message, 'warn');
+  }
+};
+
+document.getElementById('undoBtn').onclick = () => {
+  if (!editor) return;
+  editor.trigger('toolbar', 'undo', null);
+  editor.focus();
+  toast('Undo');
+};
+
+document.getElementById('redoBtn').onclick = () => {
+  if (!editor) return;
+  editor.trigger('toolbar', 'redo', null);
+  editor.focus();
+  toast('Redo');
+};
+
+document.getElementById('clearBtn').onclick = () => {
+  if (!editor) return;
+  if (!confirm('Hapus semua kode?')) return;
+  const model = editor.getModel();
+  editor.executeEdits('clear', [{ range: model.getFullModelRange(), text: '' }]);
+  toast('Editor dibersihkan');
+};
+
+/* ============ MOBILE TAB SWITCHER ============ */
+function switchTab(tab) {
+  const container = document.getElementById('container');
+  container.dataset.tab = tab;
+  document.querySelectorAll('.mobile-tabs button').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  setTimeout(() => {
+    window.dispatchEvent(new Event('resize'));
+    resize();
+  }, 50);
+}
+
+document.querySelectorAll('.mobile-tabs button').forEach(btn => {
+  btn.onclick = () => switchTab(btn.dataset.tab);
+});
+
+/* ============ RESIZER (DESKTOP) ============ */
+const resizer = document.getElementById('resizer');
+let resizing = false;
+resizer.addEventListener('mousedown', e => {
+  resizing = true;
+  e.preventDefault();
+});
+window.addEventListener('mouseup', () => resizing = false);
+window.addEventListener('mousemove', e => {
+  if (!resizing) return;
+  const pane = document.querySelector('.editor-pane');
+  const w = Math.max(200, Math.min(e.clientX, window.innerWidth - 300));
+  pane.style.width = w + 'px';
+  resize();
+});
+
+/* ============ SHORTCUT GLOBAL ============ */
+window.addEventListener('keydown', e => {
+  if (e.key === 'F5') { e.preventDefault(); render(); }
+  if (e.key === 'F6') { e.preventDefault(); compileFinal(); }
+});
+
+/* ============ INIT ============ */
+window.addEventListener('load', () => {
+  updateToolbarHeight();
+  setTimeout(updateToolbarHeight, 300);
+  setTimeout(render, 1200);
+  setExportReady(false);
+});
+
+// Cegah double-tap zoom di iOS
+let lastTouch = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouch < 300) e.preventDefault();
+  lastTouch = now;
+}, { passive: false });
+</script>
+</body>
+</html>
