@@ -3,1744 +3,2034 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>WebSCAD - OpenSCAD Web Clone</title>
+<title>OpenSCAD Web — fungsional v6 (STL Export FIXED)</title>
 
-<link rel="stylesheet" data-name="vs/editor/editor.main"
-      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/editor/editor.main.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
 
 <style>
-  :root {
-    --bg-dark: #1e1e1e;
-    --bg-panel: #252526;
-    --bg-toolbar: #333333;
-    --border: #3c3c3c;
-    --text: #d4d4d4;
-    --accent: #0e639c;
-    --accent-hover: #1177bb;
-    --success: #4ec9b0;
-    --error: #f48771;
-    --warn: #d7ba7d;
-    --btn-h: 40px;
-  }
-
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
   html, body {
-    height: 100%;
-    width: 100%;
-    font-family: 'Segoe UI', Tahoma, sans-serif;
-    background: var(--bg-dark);
-    color: var(--text);
-    overflow: hidden;
-    overscroll-behavior: none;
+    height: 100%; overflow: hidden;
+    font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    background: #1e1f22; color: #d4d4d4;
   }
+  body { display: flex; flex-direction: column; }
 
-  .toolbar {
-    background: var(--bg-toolbar);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .toolbar-row {
-    display: flex;
-    align-items: center;
-    padding: 4px 6px;
-    gap: 4px;
+  .top-bar {
+    background: #2b2d30; padding: 6px 10px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid #3c3f41; flex-shrink: 0;
     overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
   }
-  .toolbar-row::-webkit-scrollbar { display: none; }
-
-  .toolbar-row + .toolbar-row {
-    border-top: 1px solid #2a2a2a;
+  .logo-area { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .logo-icon {
+    background: #6c9e3e; width: 22px; height: 22px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #1e1f22;
   }
-
-  .logo {
-    font-weight: bold;
-    color: var(--success);
-    font-size: 14px;
-    padding: 0 8px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
+  .logo-text { font-weight: 600; font-size: 13px; color: #e0e0e0; white-space: nowrap; }
+  .spacer { flex: 1; min-width: 4px; }
 
   .btn {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    padding: 0 12px;
-    height: var(--btn-h);
-    min-width: var(--btn-h);
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    transition: background 0.15s, opacity 0.15s;
-    user-select: none;
-    touch-action: manipulation;
+    background: #3a3c3f; color: #e0e0e0; border: 1px solid #4a4c4f;
+    padding: 6px 12px; border-radius: 6px; font-size: 12.5px;
+    cursor: pointer; font-weight: 500; transition: 0.15s;
+    display: inline-flex; align-items: center; gap: 4px;
+    white-space: nowrap; flex-shrink: 0;
   }
-  .btn:active { background: var(--accent-hover); transform: scale(0.97); }
-  .btn:hover { background: var(--accent-hover); }
+  .btn:hover { background: #4a4c4f; }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary { background: #6c9e3e; color: #1e1f22; border-color: #5a8a2e; }
+  .btn.primary:hover { background: #7cae4e; }
+  .btn.export { background: #3a6a9e; color: #fff; border-color: #2a5a8e; }
+  .btn.export:hover { background: #4a7aae; }
+  .btn.icon { padding: 6px 9px; }
+  .btn.danger { background: #5a3030; border-color: #7a4040; color: #e0a0a0; }
+  .btn.danger:hover { background: #6a4040; }
 
-  .btn.secondary {
-    background: #3a3a3a;
-    color: var(--text);
+  .tab-bar {
+    display: none; background: #2b2d30; border-bottom: 1px solid #3c3f41;
   }
-  .btn.secondary:active,
-  .btn.secondary:hover { background: #4a4a4a; }
-
-  .btn.compile {
-    background: #2d7d46;
-  }
-  .btn.compile:hover,
-  .btn.compile:active { background: #3a9c58; }
-
-  .btn.export {
-    background: #7a4a0e;
-    position: relative;
-  }
-  .btn.export:hover:not(:disabled),
-  .btn.export:active:not(:disabled) { background: #9c5f13; }
-
-  .btn:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-    filter: grayscale(0.4);
-  }
-
-  .btn.export.ready {
-    background: #b8860b;
-    animation: pulse 1.6s infinite;
-  }
-  .btn.export.ready:hover { background: #d4a017; }
-
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(184,134,11,0.6); }
-    50%      { box-shadow: 0 0 0 6px rgba(184,134,11,0); }
-  }
-
-  .btn .label { display: inline; }
-
-  .badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background: var(--success);
-    color: #000;
-    border-radius: 8px;
-    font-size: 9px;
-    padding: 1px 5px;
-    font-weight: 700;
-    line-height: 1.2;
-    display: none;
-  }
-  .btn.export.ready .badge { display: block; }
-
-  .format-select {
-    background: #3a3a3a;
-    color: var(--text);
-    border: 1px solid #555;
-    border-radius: 5px;
-    height: var(--btn-h);
-    padding: 0 8px;
-    font-size: 12px;
-    cursor: pointer;
-    flex-shrink: 0;
-    outline: none;
-  }
-  .format-select:hover { background: #4a4a4a; }
-
-  .mobile-tabs {
-    display: none;
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border);
-  }
-  .mobile-tabs button {
-    flex: 1;
-    background: transparent;
-    color: #888;
-    border: none;
-    padding: 12px 6px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
+  .tab-btn {
+    flex: 1; background: transparent; border: none; color: #a0a0a0;
+    padding: 10px; font-size: 12px; cursor: pointer;
     border-bottom: 2px solid transparent;
-    transition: all 0.15s;
   }
-  .mobile-tabs button.active {
-    color: var(--success);
-    border-bottom-color: var(--success);
-    background: #2a2d2e;
-  }
+  .tab-btn.active { color: #6c9e3e; border-bottom-color: #6c9e3e; }
 
-  .container {
-    display: flex;
-    height: calc(100dvh - var(--toolbar-height, 88px));
-    width: 100%;
-  }
-
-  .editor-pane {
-    width: 45%;
-    min-width: 240px;
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
+  .main-layout { display: flex; flex: 1; min-height: 0; }
+  .left-panel, .right-panel {
+    background: #1e1f22; display: flex; flex-direction: column;
     overflow: hidden;
   }
+  .left-panel { width: 340px; border-right: 1px solid #3c3f41; }
+  .right-panel { width: 260px; border-left: 1px solid #3c3f41; }
 
-  #editor {
-    flex: 1;
-    width: 100%;
-    min-height: 0;
-  }
-
-  .viewer-pane {
-    flex: 1;
-    position: relative;
-    background: #2b2b2b;
-    min-width: 0;
-  }
-
-  #viewer {
-    width: 100%;
-    height: 100%;
-    display: block;
-    touch-action: none;
-  }
-
-  .console {
-    height: 90px;
-    background: #1a1a1a;
-    border-top: 1px solid var(--border);
-    padding: 6px 10px;
-    font-family: 'Consolas', monospace;
-    font-size: 11px;
-    line-height: 1.45;
-    overflow-y: auto;
-    color: #aaa;
+  .panel-header {
+    background: #2b2d30; padding: 6px 10px; font-size: 11px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    color: #a0a0a0; border-bottom: 1px solid #3c3f41;
+    display: flex; align-items: center; gap: 6px;
     flex-shrink: 0;
   }
-  .console .log-success { color: var(--success); }
-  .console .log-error   { color: var(--error); }
-  .console .log-warn    { color: var(--warn); }
+  .panel-header .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #6c9e3e;
+  }
+  .panel-header .spacer { flex: 1; }
 
-  .info {
-    position: absolute;
-    top: 8px;
-    left: 8px;
-    background: rgba(0,0,0,0.65);
-    padding: 5px 9px;
-    border-radius: 4px;
-    font-size: 11px;
-    color: #ccc;
+  .editor-toolbar {
+    background: #24262a; padding: 4px 6px;
+    display: flex; align-items: center; gap: 4px;
+    border-bottom: 1px solid #3c3f41;
+    flex-shrink: 0; flex-wrap: wrap;
+  }
+  .tool-btn {
+    background: #3a3c3f; color: #d0d0d0;
+    border: 1px solid #4a4c4f;
+    padding: 4px 8px; border-radius: 4px;
+    font-size: 11px; cursor: pointer;
+    transition: 0.15s; white-space: nowrap;
+  }
+  .tool-btn:hover { background: #4a4c4f; color: #fff; }
+  .tool-btn:active { transform: scale(0.96); }
+  .tool-btn.danger { background: #5a3030; border-color: #7a4040; color: #e0a0a0; }
+  .tool-btn.danger:hover { background: #6a4040; }
+  .tool-sep { width: 1px; height: 16px; background: #4a4c4f; margin: 0 2px; }
+
+  .template-select {
+    background: #3a3c3f; color: #d0d0d0;
+    border: 1px solid #4a4c4f;
+    padding: 4px 6px; border-radius: 4px;
+    font-size: 11px; cursor: pointer;
+    max-width: 130px;
+  }
+  .template-select:hover { background: #4a4c4f; }
+
+  .CodeMirror {
+    height: 100% !important; background: #1e1f22 !important;
+    color: #d4d4d4 !important; font-family: 'JetBrains Mono','Consolas',monospace !important;
+    font-size: 13px !important; line-height: 1.5 !important; border: none !important;
+  }
+  .CodeMirror-gutters { background: #1e1f22 !important; border-right: 1px solid #2b2d30 !important; }
+  .CodeMirror-linenumber { color: #5a5c5f !important; }
+  .CodeMirror-cursor { border-left: 2px solid #6c9e3e !important; }
+  .CodeMirror-selected { background: #3a4a3a !important; }
+  .CodeMirror-focused .CodeMirror-selected { background: #4a5a4a !important; }
+  .cm-keyword { color: #c586c0 !important; }
+  .cm-builtin { color: #4ec9b0 !important; }
+  .cm-number { color: #b5cea8 !important; }
+  .cm-string { color: #ce9178 !important; }
+  .cm-comment { color: #6a9955 !important; font-style: italic; }
+  .cm-def { color: #dcdcaa !important; }
+
+  .center-panel {
+    flex: 1; display: flex; flex-direction: column;
+    background: #151618; min-width: 0; position: relative;
+  }
+  .viewport-toolbar {
+    background: #2b2d30; padding: 4px 8px; display: flex;
+    align-items: center; gap: 8px; border-bottom: 1px solid #3c3f41;
+    overflow-x: auto; flex-shrink: 0;
+  }
+  .view-btn {
+    background: transparent; border: none; color: #b0b0b0;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; white-space: nowrap; transition: 0.15s;
+  }
+  .view-btn:hover { background: #3e4043; color: white; }
+  .view-btn.active { background: #3a3c3f; color: #fff; }
+  .view-sep { width: 1px; height: 16px; background: #4a4c4f; flex-shrink: 0; }
+
+  #viewport { flex: 1; position: relative; overflow: hidden; }
+  #viewport canvas { display: block; touch-action: none; }
+
+  .axis-indicator {
+    position: absolute; bottom: 12px; right: 16px;
+    display: flex; gap: 10px; font-size: 11px; font-weight: 700;
+    background: #1e1f22cc; padding: 5px 10px; border-radius: 16px;
+    backdrop-filter: blur(4px); border: 1px solid #3c3f41;
     pointer-events: none;
-    font-family: monospace;
+  }
+  .axis-x { color: #e06c6c; } .axis-y { color: #6ce06c; } .axis-z { color: #6c9ee0; }
+
+  .props-list { padding: 8px 6px; overflow-y: auto; flex: 1; }
+  .prop-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 10px; border-radius: 6px; font-size: 12.5px;
+    color: #c0c0c0; margin-bottom: 2px;
+  }
+  .prop-item:hover { background: #2b2d30; }
+  .prop-value {
+    background: #2b2d30; padding: 4px 8px; border-radius: 6px;
+    font-family: monospace; font-size: 12px; color: #b5cea8;
+    border: 1px solid #3c3f41; min-width: 60px; text-align: right;
   }
 
-  .status-badge {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: rgba(0,0,0,0.7);
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 11px;
-    color: #888;
-    pointer-events: none;
-    font-family: monospace;
-    border: 1px solid #444;
+  .status-bar {
+    background: #2b2d30; padding: 4px 12px; font-size: 11.5px;
+    color: #a0a0a0; display: flex; align-items: center; gap: 14px;
+    border-top: 1px solid #3c3f41; flex-shrink: 0; overflow: hidden;
   }
-  .status-badge.ready {
-    color: var(--success);
-    border-color: var(--success);
+  .status-bar .green-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #6c9e3e; display: inline-block; margin-right: 4px;
   }
-
-  .resizer {
-    width: 4px;
-    cursor: col-resize;
-    background: transparent;
-    flex-shrink: 0;
-  }
-  .resizer:hover { background: var(--accent); }
+  .status-bar .right { margin-left: auto; display: flex; gap: 14px; }
+  .status-bar .info { white-space: nowrap; }
+  .status-bar.error .green-dot { background: #e06c6c; }
+  .status-bar.error #statusText { color: #e06c6c; }
 
   .toast {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    background: #0e639c;
-    color: #fff;
-    padding: 10px 20px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 500;
-    z-index: 9999;
-    opacity: 0;
-    transition: all 0.25s ease;
-    pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    max-width: 90vw;
-    text-align: center;
+    position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #3a3c3f; color: #fff; padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); opacity: 0;
+    transition: 0.3s; pointer-events: none; z-index: 9999;
+    border: 1px solid #4a4c4f; max-width: 90vw; text-align: center;
+    word-break: break-word;
   }
-  .toast.show {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: #6c3030; border-color: #8a4040; }
+  .toast.success { background: #2e5a2e; border-color: #4a8a4a; }
+  .toast.info { background: #2e4a6c; border-color: #3a6a9e; }
+
+  .manual-dl-box {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: #2b2d30; border: 1px solid #6c9e3e; border-radius: 8px;
+    padding: 10px 14px; font-size: 12px; color: #d4d4d4;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5); z-index: 9998;
+    display: flex; align-items: center; gap: 10px;
+    max-width: 92vw; flex-wrap: wrap; justify-content: center;
   }
-  .toast.error { background: #a02020; }
-  .toast.success { background: #2d7d46; }
-
-  @media (max-width: 768px) {
-    .container {
-      flex-direction: column;
-      height: calc(100dvh - var(--toolbar-height, 88px));
-    }
-
-    .mobile-tabs { display: flex; }
-
-    .editor-pane,
-    .viewer-pane {
-      width: 100% !important;
-      height: 100%;
-      min-width: 0;
-      border-right: none;
-    }
-
-    .resizer { display: none; }
-
-    .container[data-tab="editor"] .viewer-pane { display: none; }
-    .container[data-tab="viewer"] .editor-pane { display: none; }
-    .container[data-tab="viewer"] .console { display: none; }
-
-    .console { height: 70px; font-size: 10px; }
-
-    .btn .label { display: none; }
-    .btn { padding: 0 10px; }
-
-    .logo { font-size: 13px; padding: 0 4px; }
-
-    .format-select {
-      font-size: 11px;
-      padding: 0 4px;
-    }
+  .manual-dl-box a {
+    background: #6c9e3e; color: #1e1f22;
+    padding: 6px 12px; border-radius: 6px;
+    text-decoration: none; font-weight: 600; font-size: 12px;
+    word-break: break-all; max-width: 60vw;
+  }
+  .manual-dl-box button {
+    background: transparent; border: none; color: #8a8a8a;
+    cursor: pointer; font-size: 16px; padding: 0 4px;
   }
 
-  @media (max-width: 400px) {
-    .btn { height: 38px; min-width: 38px; font-size: 12px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #1e1f22; }
+  ::-webkit-scrollbar-thumb { background: #3e4043; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #5a5c5f; }
+
+  @media (max-width: 900px) {
+    .left-panel, .right-panel {
+      position: absolute; top: 0; bottom: 0;
+      width: 100% !important; max-width: 100%;
+      z-index: 10; transform: translateX(-100%);
+      transition: transform 0.25s ease;
+    }
+    .left-panel { left: 0; border-right: none; }
+    .right-panel { right: 0; border-left: none; }
+    .left-panel.open, .right-panel.open { transform: translateX(0); }
+    .main-layout { position: relative; overflow: hidden; }
+    .tab-bar { display: flex; }
+    .status-bar .right span:nth-child(1) { display: none; }
+    .status-bar { gap: 8px; font-size: 11px; }
+    .top-bar { padding: 6px 8px; gap: 6px; }
+    .btn { padding: 6px 10px; font-size: 12px; }
+  }
+  @media (max-width: 480px) {
+    .logo-text { display: none; }
+    .status-bar .info:nth-child(2) { display: none; }
+    .editor-toolbar .tool-btn { font-size: 10px; padding: 4px 6px; }
+    .btn.export span.label { display: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="toolbar" id="toolbar">
-  <div class="toolbar-row">
-    <span class="logo">⬢ WebSCAD</span>
-    <button class="btn" id="renderBtn" title="Preview / Render (F5)">
-      <span>▶</span><span class="label">Render</span>
-    </button>
-    <button class="btn compile" id="compileBtn" title="Compile final (F6)">
-      <span>⚙</span><span class="label">Compile (F6)</span>
-    </button>
-    <button class="btn export" id="exportBtn" title="Export STL" disabled>
-      <span>⬇</span><span class="label">Export STL</span>
-      <span class="badge">READY</span>
-    </button>
-    <select class="format-select" id="formatSelect" title="Format STL">
-      <option value="ascii">ASCII</option>
-      <option value="binary">Binary</option>
-    </select>
-    <button class="btn secondary" id="wireBtn" title="Wireframe">
-      <span>◇</span><span class="label">Wire</span>
-    </button>
-    <button class="btn secondary" id="resetBtn" title="Reset Kamera">
-      <span>⟲</span><span class="label">Reset</span>
-    </button>
+<div class="top-bar">
+  <div class="logo-area">
+    <div class="logo-icon">⬡</div>
+    <span class="logo-text">OpenSCAD Web</span>
   </div>
-
-  <div class="toolbar-row">
-    <button class="btn secondary" id="selectAllBtn" title="Pilih Semua (Ctrl+A)">
-      <span>▣</span><span class="label">Pilih Semua</span>
-    </button>
-    <button class="btn secondary" id="copyBtn" title="Copy (Ctrl+C)">
-      <span>⧉</span><span class="label">Copy</span>
-    </button>
-    <button class="btn secondary" id="cutBtn" title="Cut (Ctrl+X)">
-      <span>✂</span><span class="label">Cut</span>
-    </button>
-    <button class="btn secondary" id="pasteBtn" title="Paste (Ctrl+V)">
-      <span>📋</span><span class="label">Paste</span>
-    </button>
-    <button class="btn secondary" id="undoBtn" title="Undo (Ctrl+Z)">
-      <span>↶</span><span class="label">Undo</span>
-    </button>
-    <button class="btn secondary" id="redoBtn" title="Redo (Ctrl+Y)">
-      <span>↷</span><span class="label">Redo</span>
-    </button>
-    <button class="btn secondary" id="clearBtn" title="Hapus Semua">
-      <span>🗑</span><span class="label">Clear</span>
-    </button>
-  </div>
+  <div class="spacer"></div>
+  <button class="btn primary" id="btnRender" title="Render (F5)">▶ Render</button>
+  <button class="btn export" id="btnExportSTL" title="Compile &amp; Export STL (F6)">⬇ <span class="label">Export STL</span></button>
 </div>
 
-<div class="mobile-tabs">
-  <button data-tab="editor" class="active">📝 Editor</button>
-  <button data-tab="viewer">👁 Viewer</button>
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="editor">✏️ Editor</button>
+  <button class="tab-btn" data-tab="view">🎨 3D</button>
+  <button class="tab-btn" data-tab="props">⚙️ Props</button>
 </div>
 
-<div class="container" id="container" data-tab="editor">
-  <div class="editor-pane">
-    <div id="editor"></div>
-    <div class="console" id="console">
-      <div class="log-success">[info] WebSCAD siap. F5 = preview, F6 = compile final, lalu Export STL.</div>
+<div class="main-layout">
+  <div class="left-panel" id="leftPanel">
+    <div class="panel-header"><span class="dot"></span> editor / main.scad</div>
+
+    <div class="editor-toolbar">
+      <button class="tool-btn" id="btnSelectAll" title="Pilih semua kode (Ctrl+A)">📋 Select All</button>
+      <button class="tool-btn" id="btnCopy" title="Salin kode">📄 Copy</button>
+      <button class="tool-btn" id="btnPaste" title="Tempel dari clipboard">📥 Paste</button>
+      <button class="tool-btn danger" id="btnClear" title="Hapus semua">🗑️ Clear</button>
+      <div class="tool-sep"></div>
+      <select class="template-select" id="templateSelect" title="Pilih template">
+        <option value="">— Template —</option>
+        <option value="triangle">△ Segitiga</option>
+        <option value="cube">⬛ Kubus</option>
+        <option value="sphere">⚫ Bola</option>
+        <option value="cylinder">🛢️ Silinder</option>
+        <option value="pyramid">🔺 Piramida</option>
+        <option value="torus">🍩 Torus</option>
+        <option value="house">🏠 Rumah</option>
+        <option value="trees">🌲 Pohon</option>
+        <option value="gear">⚙️ Gear</option>
+        <option value="spring">🌀 Spring</option>
+        <option value="text3d">🔤 Teks</option>
+        <option value="demo">🎨 Demo</option>
+      </select>
+    </div>
+
+    <div style="flex:1; overflow:hidden; display:flex;">
+      <textarea id="code"></textarea>
     </div>
   </div>
 
-  <div class="resizer" id="resizer"></div>
+  <div class="center-panel">
+    <div class="viewport-toolbar">
+      <button class="view-btn active" data-view="persp">Perspektif</button>
+      <button class="view-btn" data-view="ortho">Ortho</button>
+      <div class="view-sep"></div>
+      <button class="view-btn" id="btnReset">🎯 Reset</button>
+      <button class="view-btn" id="btnWire">🔲 Wire</button>
+      <div class="view-sep"></div>
+      <button class="view-btn" id="btnExportSTL2">⬇ STL</button>
+      <div class="view-sep"></div>
+      <span style="font-size:11px; color:#7a7a7a; white-space:nowrap;">Drag=rotasi · Pinch=zoom</span>
+    </div>
+    <div id="viewport">
+      <div class="axis-indicator">
+        <span class="axis-x">X</span><span class="axis-y">Y</span><span class="axis-z">Z</span>
+      </div>
+    </div>
+  </div>
 
-  <div class="viewer-pane">
-    <canvas id="viewer"></canvas>
-    <div class="info" id="info">Objek: 0 | Kamera: orbit</div>
-    <div class="status-badge" id="statusBadge">Belum di-compile</div>
+  <div class="right-panel" id="rightPanel">
+    <div class="panel-header"><span class="dot" style="background:#6c9ee0"></span> info scene</div>
+    <div class="props-list">
+      <div class="prop-item"><span>Objek</span><span class="prop-value" id="propObjects">0</span></div>
+      <div class="prop-item"><span>Vertices</span><span class="prop-value" id="propVerts">0</span></div>
+      <div class="prop-item"><span>Faces</span><span class="prop-value" id="propFaces">0</span></div>
+      <div class="prop-item"><span>Waktu</span><span class="prop-value" id="propTime">0 ms</span></div>
+      <div style="height:1px; background:#3c3f41; margin:8px 10px;"></div>
+      <div class="prop-item" style="font-size:11px; color:#8a8a8a; justify-content:center;">
+        ⚙️ Kontrol $fn
+      </div>
+      <div class="prop-item">
+        <span>$fn global</span>
+        <input type="range" id="fnSlider" min="3" max="128" value="32" style="width:110px; accent-color:#6c9e3e;">
+      </div>
+      <div class="prop-item"><span>$fn value</span><span class="prop-value" id="fnVal">32</span></div>
+      <div style="height:1px; background:#3c3f41; margin:8px 10px;"></div>
+      <div class="prop-item" style="font-size:11px; color:#8a8a8a; justify-content:center;">
+        📦 Export STL
+      </div>
+      <div class="prop-item">
+        <span>Format</span>
+        <select id="stlFormat" style="background:#2b2d30; color:#d4d4d4; border:1px solid #3c3f41; padding:4px 6px; border-radius:4px; font-size:11.5px;">
+          <option value="binary">Binary STL</option>
+          <option value="ascii">ASCII STL</option>
+        </select>
+      </div>
+      <div class="prop-item">
+        <span>Presisi</span>
+        <input type="range" id="stlPrecision" min="3" max="8" value="6" style="width:80px; accent-color:#6c9e3e;">
+        <span class="prop-value" id="stlPrecisionVal" style="min-width:20px; padding:2px 6px;">6</span>
+      </div>
+      <div class="prop-item">
+        <button class="tool-btn" id="btnExportSTL3" style="width:100%; padding:6px; background:#3a6a9e; border-color:#2a5a8e; color:#fff; font-size:11px;">⬇ Export STL Sekarang</button>
+      </div>
+      <div class="prop-item" style="font-size:10.5px; color:#7a7a7a; display:block; line-height:1.5; padding:6px 10px;">
+        STL berisi geometri 3D dari scene saat ini. Boolean (difference/intersection) di STL akan berupa gabungan mesh (bukan CSG sejati).
+      </div>
+      <div style="height:1px; background:#3c3f41; margin:8px 10px;"></div>
+      <div class="prop-item" style="font-size:11px; color:#8a8a8a;">Perintah didukung:</div>
+      <div class="prop-item" style="font-size:11px; color:#7a7a7a; display:block; line-height:1.6; padding:6px 10px;">
+        cube, sphere, cylinder, polyhedron,<br>
+        translate, rotate, scale, mirror, color,<br>
+        union, difference, intersection,<br>
+        module, for, if/else, let, $fn
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <div class="info"><span class="green-dot"></span><span id="statusText">Siap</span></div>
+  <div class="info" id="statusInfo">📐 —</div>
+  <div class="right">
+    <span id="statusPos">Ln 1, Col 1</span>
+    <span id="statusChars">0 chars</span>
+    <span>OpenSCAD Web v6</span>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
-
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-
-/* ============ HELPER: TOAST ============ */
+<script>
+/* ========================= TOAST ========================= */
 const toastEl = document.getElementById('toast');
 let toastTimer;
 function toast(msg, type = '') {
   toastEl.textContent = msg;
-  toastEl.className = 'toast show' + (type ? ' ' + type : '');
+  toastEl.className = 'toast show ' + type;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toastEl.className = 'toast';
-  }, 2200);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 3500);
+}
+function setStatus(msg, isError = false) {
+  document.getElementById('statusText').textContent = msg;
+  document.getElementById('statusBar').classList.toggle('error', isError);
 }
 
-/* ============ HELPER: TOOLBAR HEIGHT ============ */
-function updateToolbarHeight() {
-  const h = document.getElementById('toolbar').offsetHeight
-          + (document.querySelector('.mobile-tabs').offsetHeight || 0);
-  document.documentElement.style.setProperty('--toolbar-height', h + 'px');
-}
-window.addEventListener('resize', updateToolbarHeight);
-window.addEventListener('orientationchange', () => setTimeout(updateToolbarHeight, 100));
-
-/* ============ SETUP THREE.JS ============ */
-const canvas   = document.getElementById('viewer');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x2b2b2b);
-
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
-camera.position.set(60, 60, 80);
-
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.touches = {
-  ONE: THREE.TOUCH.ROTATE,
-  TWO: THREE.TOUCH.DOLLY_PAN
+/* ========================= STATE ========================= */
+const state = {
+  scene: null, renderer: null, camera: null, controls: null,
+  wireframe: false, globalFn: 32,
+  _hasRendered: false,
+  sceneRoot: null,
+  lastObjects: 0, lastVerts: 0, lastFaces: 0,
 };
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-dirLight.position.set(50, 100, 60);
-scene.add(dirLight);
-const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
-dirLight2.position.set(-60, -30, -50);
-scene.add(dirLight2);
+/* ========================= INIT THREE ========================= */
+function initThree() {
+  const container = document.getElementById('viewport');
+  const w = container.clientWidth || 400;
+  const h = container.clientHeight || 400;
 
-const grid = new THREE.GridHelper(200, 40, 0x444444, 0x333333);
-scene.add(grid);
-scene.add(new THREE.AxesHelper(15));
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x151618);
 
-const modelGroup = new THREE.Group();
-scene.add(modelGroup);
+  const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+  camera.position.set(40, 40, 60);
+  camera.lookAt(0, 0, 0);
 
-const material = new THREE.MeshStandardMaterial({
-  color: 0xffd400,
-  metalness: 0.15,
-  roughness: 0.55
-});
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
 
-let wireframeMode = false;
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.1;
+  controls.screenSpacePanning = true;
 
-/* ============ RENDER LOOP ============ */
-function resize() {
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  if (w === 0 || h === 0) return;
-  if (canvas.width !== w * renderer.getPixelRatio() ||
-      canvas.height !== h * renderer.getPixelRatio()) {
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const d1 = new THREE.DirectionalLight(0xffffff, 0.9);
+  d1.position.set(50, 100, 50); scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.4);
+  d2.position.set(-50, -30, -50); scene.add(d2);
+
+  const grid = new THREE.GridHelper(200, 20, 0x3c3f41, 0x2b2d30);
+  grid.position.y = -0.01; scene.add(grid);
+
+  const axes = new THREE.AxesHelper(20);
+  axes.position.set(-80, 0.01, -80); scene.add(axes);
+
+  state.scene = scene; state.camera = camera;
+  state.renderer = renderer; state.controls = controls;
+
+  window.addEventListener('resize', onResize);
+  new ResizeObserver(onResize).observe(container);
+
+  function onResize() {
+    const c = document.getElementById('viewport');
+    const W = c.clientWidth, H = c.clientHeight;
+    if (!W || !H) return;
+    if (state.camera.isPerspectiveCamera) {
+      state.camera.aspect = W / H;
+    } else {
+      const aspect = W / H, size = 80;
+      state.camera.left = -size * aspect / 2;
+      state.camera.right = size * aspect / 2;
+      state.camera.top = size / 2;
+      state.camera.bottom = -size / 2;
+    }
+    state.camera.updateProjectionMatrix();
+    state.renderer.setSize(W, H);
   }
+
+  animate();
 }
+
 function animate() {
   requestAnimationFrame(animate);
-  resize();
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-
-/* ============ CONSOLE ============ */
-function log(msg, type = '') {
-  const c = document.getElementById('console');
-  const div = document.createElement('div');
-  if (type) div.className = 'log-' + type;
-  div.textContent = msg;
-  c.appendChild(div);
-  c.scrollTop = c.scrollHeight;
-  while (c.children.length > 100) c.removeChild(c.firstChild);
+  if (state.controls) state.controls.update();
+  if (state.renderer && state.scene && state.camera) {
+    state.renderer.render(state.scene, state.camera);
+  }
 }
 
-/* ============================================================
-   TOKENIZER — dengan operator aritmatika & perbandingan
-   ============================================================ */
+/* ========================= TOKENIZER ========================= */
 function tokenize(src) {
-  const re = /\s*(\d+\.?\d*(?:[eE][+-]?\d+)?|"[^"]*"|\$[A-Za-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_]*|<=|>=|==|!=|&&|\|\||[\[\]\(\),;=<>+\-*\/%!{}:])/g;
   const tokens = [];
-  let m;
-  while ((m = re.exec(src)) !== null) tokens.push(m[1]);
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === '/' && src[i+1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i+1] === '*') {
+      i += 2;
+      while (i < n && !(src[i] === '*' && src[i+1] === '/')) i++;
+      i += 2; continue;
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i+1]))) {
+      let s = i;
+      while (i < n && /[0-9.]/.test(src[i])) i++;
+      tokens.push({ type: 'num', value: parseFloat(src.slice(s, i)) });
+      continue;
+    }
+    if (c === '"') {
+      i++;
+      let val = '';
+      while (i < n && src[i] !== '"') {
+        if (src[i] === '\\' && i+1 < n) { val += src[i+1]; i += 2; }
+        else { val += src[i]; i++; }
+      }
+      i++;
+      tokens.push({ type: 'str', value: val });
+      continue;
+    }
+    if (/[a-zA-Z_$]/.test(c)) {
+      let s = i;
+      while (i < n && /[a-zA-Z0-9_$]/.test(src[i])) i++;
+      tokens.push({ type: 'id', value: src.slice(s, i) });
+      continue;
+    }
+    const multi = ['>=', '<=', '==', '!=', '&&', '||'];
+    let matched = false;
+    for (const p of multi) {
+      if (src.substr(i, p.length) === p) {
+        tokens.push({ type: 'op', value: p });
+        i += p.length; matched = true; break;
+      }
+    }
+    if (matched) continue;
+    if ('(){}[];,=+-*/%<>!&|.?:#'.includes(c)) {
+      tokens.push({ type: 'op', value: c });
+      i++; continue;
+    }
+    i++;
+  }
   return tokens;
 }
 
-/* ============================================================
-   EXPRESSION EVALUATOR — untuk re-evaluate tokens dengan env baru
-   ============================================================ */
-class ExpressionEvaluator {
-  constructor(tokens, env) {
-    this.t = tokens;
-    this.i = 0;
-    this.env = env || {};
-  }
-  peek(o = 0) { return this.t[this.i + o]; }
-  next() { return this.t[this.i++]; }
-
-  parseExpression() { return this.parseLogicalOr(); }
-
-  parseLogicalOr() {
-    let l = this.parseLogicalAnd();
-    while (this.peek() === '||') { this.next(); const r = this.parseLogicalAnd(); l = (l||r)?1:0; }
-    return l;
-  }
-  parseLogicalAnd() {
-    let l = this.parseEquality();
-    while (this.peek() === '&&') { this.next(); const r = this.parseEquality(); l = (l&&r)?1:0; }
-    return l;
-  }
-  parseEquality() {
-    let l = this.parseComparison();
-    while (['==','!='].includes(this.peek())) {
-      const op = this.next(); const r = this.parseComparison();
-      l = op === '==' ? (l===r?1:0) : (l!==r?1:0);
-    }
-    return l;
-  }
-  parseComparison() {
-    let l = this.parseAdditive();
-    while (['<','>','<=','>='].includes(this.peek())) {
-      const op = this.next(); const r = this.parseAdditive();
-      switch (op) {
-        case '<':  l = l<r?1:0; break;
-        case '>':  l = l>r?1:0; break;
-        case '<=': l = l<=r?1:0; break;
-        case '>=': l = l>=r?1:0; break;
-      }
-    }
-    return l;
-  }
-  parseAdditive() {
-    let l = this.parseMultiplicative();
-    while (this.peek() === '+' || this.peek() === '-') {
-      const op = this.next(); const r = this.parseMultiplicative();
-      l = op === '+' ? l+r : l-r;
-    }
-    return l;
-  }
-  parseMultiplicative() {
-    let l = this.parseUnary();
-    while (['*','/','%'].includes(this.peek())) {
-      const op = this.next(); const r = this.parseUnary();
-      if (op === '*') l = l*r;
-      else if (op === '/') l = l/r;
-      else l = l%r;
-    }
-    return l;
-  }
-  parseUnary() {
-    if (this.peek() === '-') { this.next(); return -this.parseUnary(); }
-    if (this.peek() === '+') { this.next(); return  this.parseUnary(); }
-    if (this.peek() === '!') { this.next(); return this.parseUnary()?0:1; }
-    return this.parsePrimary();
-  }
-  parsePrimary() {
-    const tok = this.next();
-
-    // Array atau range
-    if (tok === '[') {
-      const items = [];
-      let isRange = false, step = null;
-      while (this.peek() !== ']') {
-        items.push(this.parseExpression());
-        if (this.peek() === ':') {
-          isRange = true;
-          this.next();
-          const second = this.parseExpression();
-          if (this.peek() === ':') {
-            this.next();
-            const third = this.parseExpression();
-            step = second;
-            items.push(third);
-          } else {
-            items.push(second);
-          }
-          break;
-        }
-        if (this.peek() === ',') this.next();
-        else break;
-      }
-      this.expect(']');
-      if (isRange) {
-        const start = items[0];
-        const end = items[items.length - 1];
-        const s = step !== null ? step : (start <= end ? 1 : -1);
-        return { __range__: true, start, step: s, end };
-      }
-      return items;
-    }
-
-    if (typeof tok === 'string' && /^".*"$/.test(tok)) return tok.slice(1, -1);
-
-    if (typeof tok === 'string' && /^\d/.test(tok)) return parseFloat(tok);
-
-    if (typeof tok === 'string' && /^[A-Za-z_]/.test(tok)) {
-      if (this.peek() === '(') {
-        const args = this.parseArgs();
-        return this.callFunction(tok, args);
-      }
-      if (tok in this.env) return this.env[tok];
-      if (tok === 'PI') return Math.PI;
-      return 0;
-    }
-
-    if (typeof tok === 'string' && tok.startsWith('$')) {
-      return this.env[tok] ?? 0;
-    }
-
-    if (tok === '(') {
-      const v = this.parseExpression();
-      this.expect(')');
-      return v;
-    }
-
-    const n = parseFloat(tok);
-    return isNaN(n) ? 0 : n;
-  }
-  parseArgs() {
-    this.expect('(');
-    const args = [];
-    while (this.peek() && this.peek() !== ')') {
-      args.push(this.parseExpression());
-      if (this.peek() === ',') this.next();
-      else break;
-    }
-    this.expect(')');
-    return args;
-  }
-  expect(v) {
-    const tok = this.next();
-    if (tok !== v) throw new Error(`Diharapkan '${v}', dapat '${tok ?? 'EOF'}'`);
-    return tok;
-  }
-  callFunction(name, args) {
-    switch (name) {
-      case 'sin':   return Math.sin(args[0]);
-      case 'cos':   return Math.cos(args[0]);
-      case 'tan':   return Math.tan(args[0]);
-      case 'asin':  return Math.asin(args[0]);
-      case 'acos':  return Math.acos(args[0]);
-      case 'atan':  return Math.atan(args[0]);
-      case 'atan2': return Math.atan2(args[0], args[1]);
-      case 'sqrt':  return Math.sqrt(args[0]);
-      case 'abs':   return Math.abs(args[0]);
-      case 'floor': return Math.floor(args[0]);
-      case 'ceil':  return Math.ceil(args[0]);
-      case 'round': return Math.round(args[0]);
-      case 'pow':   return Math.pow(args[0], args[1]);
-      case 'min':   return Math.min(...args);
-      case 'max':   return Math.max(...args);
-      case 'len':   return Array.isArray(args[0]) ? args[0].length : 1;
-      default:      return 0;
-    }
-  }
-}
-
-/* Helper: re-evaluate raw token list dengan env lokal */
-function evaluateTokens(tokens, env) {
-  const ev = new ExpressionEvaluator(tokens, env);
-  return ev.parseExpression();
-}
-
-/* ============================================================
-   PARSER — precedence climbing + module + for loop
-   ============================================================ */
+/* ========================= PARSER ========================= */
 class Parser {
-  constructor(tokens) {
-    this.t = tokens;
-    this.i = 0;
-    this.env = { PI: Math.PI, true: 1, false: 0 };
-    this.modules = {};  // user-defined modules
-  }
+  constructor(tokens) { this.tokens = tokens; this.pos = 0; }
+  peek(off = 0) { return this.tokens[this.pos + off]; }
+  next() { return this.tokens[this.pos++]; }
+  eof() { return this.pos >= this.tokens.length; }
 
-  peek(offset = 0) { return this.t[this.i + offset]; }
-  next()  { return this.t[this.i++]; }
-
-  expect(v) {
-    const tok = this.next();
-    if (tok !== v) {
-      throw new Error(`Diharapkan '${v}', dapat '${tok ?? 'EOF'}'`);
+  expect(type, value) {
+    const t = this.peek();
+    if (!t || t.type !== type || (value !== undefined && t.value !== value)) {
+      const got = t ? `${t.type} "${t.value}"` : 'EOF';
+      throw new Error(`expected ${type} "${value}", got ${got}`);
     }
-    return tok;
+    return this.next();
   }
+  match(type, value) {
+    const t = this.peek();
+    if (t && t.type === type && (value === undefined || t.value === value)) return this.next();
+    return null;
+  }
+  matchOp(value) { return this.match('op', value); }
 
-  /* ----- Top-level ----- */
-  parseBlock(stopAtBrace = false) {
-    const nodes = [];
-    while (this.i < this.t.length) {
-      if (stopAtBrace && this.peek() === '}') break;
-
-      // module definition
-      if (this.peek() === 'module') {
-        this.parseModuleDefinition();
-        continue;
+  parseProgram() {
+    const modules = {};
+    const statements = [];
+    while (!this.eof()) {
+      this.matchOp(';');
+      if (this.eof()) break;
+      const t = this.peek();
+      if (t.type === 'id' && t.value === 'module') {
+        const m = this.parseModuleDef();
+        modules[m.name] = m;
+      } else {
+        const s = this.parseStatement();
+        if (s) statements.push(s);
+        this.matchOp(';');
       }
-
-      // Assignment variabel: identifier '=' expression ';'
-      if (/^[A-Za-z_]/.test(this.peek() || '') &&
-          this.peek(1) === '=' &&
-          this.peek(2) !== '=') {
-        const name = this.next();
-        this.next(); // '='
-        const value = this.parseExpression();
-        if (this.peek() === ';') this.next();
-        this.env[name] = value;
-        continue;
-      }
-
-      // $fn = 64; → skip
-      if ((this.peek() || '').startsWith('$') && this.peek(1) === '=') {
-        const name = this.next();
-        this.next();
-        const value = this.parseExpression();
-        if (this.peek() === ';') this.next();
-        this.env[name] = value;
-        continue;
-      }
-
-      const node = this.parseStatement();
-      if (node) nodes.push(node);
     }
-    return nodes;
+    return { modules, statements };
   }
 
-  parseModuleDefinition() {
-    this.expect('module');
-    const name = this.next();
-    this.expect('(');
+  parseModuleDef() {
+    this.next();
+    const name = this.expect('id').value;
+    this.expect('op', '(');
     const params = [];
-    while (this.peek() && this.peek() !== ')') {
-      params.push(this.next());
-      if (this.peek() === ',') this.next();
-      else break;
+    while (!this.matchOp(')')) {
+      if (this.eof()) throw new Error('unclosed module params');
+      if (this.matchOp(',')) continue;
+      const pname = this.expect('id').value;
+      let def = null;
+      if (this.matchOp('=')) def = this.parseExpr();
+      params.push({ name: pname, def });
     }
-    this.expect(')');
-
-    // Body
-    let body = [];
-    if (this.peek() === '{') {
-      this.next();
-      // Parse body dengan env terpisah
-      const savedEnv = Object.assign({}, this.env);
-      body = this.parseBlock(true);
-      this.expect('}');
-      this.env = savedEnv;
-    } else {
-      const c = this.parseStatement();
-      if (c) body.push(c);
-    }
-    if (this.peek() === ';') this.next();
-
-    this.modules[name] = { params, body };
+    const body = this.parseStatement();
+    return { name, params, body };
   }
 
   parseStatement() {
-    const name = this.peek();
-    if (!name) return null;
+    const t = this.peek();
+    if (!t) return null;
 
-    // for loop
-    if (name === 'for') {
-      return this.parseForLoop();
+    if (t.type === 'op' && '!#%*'.includes(t.value)) {
+      this.next();
+      const inner = this.parseStatement();
+      return { type: 'modifier', mod: t.value, body: inner };
     }
 
-    // Transform / warna / boolean
-    if (['translate','rotate','scale','color','mirror',
-         'union','difference','intersection'].includes(name)) {
+    if (t.type === 'op' && t.value === '{') {
       this.next();
-      let args = null;
-      if (this.peek() === '(') args = this.parseArgs();
+      const body = [];
+      while (!this.eof() && !(this.peek().type === 'op' && this.peek().value === '}')) {
+        this.matchOp(';');
+        if (this.peek() && this.peek().type === 'op' && this.peek().value === '}') break;
+        const s = this.parseStatement();
+        if (s) body.push(s);
+        this.matchOp(';');
+      }
+      this.matchOp('}');
+      return { type: 'block', body };
+    }
 
-      let children = [];
-      if (this.peek() === '{') {
+    if (t.type === 'id' && t.value === 'for') {
+      this.next();
+      this.expect('op', '(');
+      const vname = this.expect('id').value;
+      this.expect('op', '=');
+      const range = this.parseRange();
+      this.expect('op', ')');
+      const body = this.parseStatement();
+      return { type: 'for', var: vname, range, body };
+    }
+
+    if (t.type === 'id' && t.value === 'if') {
+      this.next();
+      this.expect('op', '(');
+      const cond = this.parseExpr();
+      this.expect('op', ')');
+      const thenS = this.parseStatement();
+      let elseS = null;
+      if (this.peek() && this.peek().type === 'id' && this.peek().value === 'else') {
         this.next();
-        children = this.parseBlock(true);
-        this.expect('}');
-      } else {
-        const c = this.parseStatement();
-        if (c) children.push(c);
+        elseS = this.parseStatement();
       }
-      if (this.peek() === ';') this.next();
-      return { type: 'transform', name, args, children };
+      return { type: 'if', cond, then: thenS, else: elseS };
     }
 
-    // Primitif
-    if (['cube','sphere','cylinder'].includes(name)) {
+    if (t.type === 'id' && t.value === 'let') {
       this.next();
-      let args = [];
-      if (this.peek() === '(') args = this.parseArgs();
-      if (this.peek() === ';') this.next();
-      return { type: 'primitive', name, args };
-    }
-
-    // Module call: name(args)
-    if (/^[A-Za-z_]/.test(name) && this.peek(1) === '(') {
-      const callName = this.next();
-      const args = this.parseArgs();
-      if (this.peek() === ';') this.next();
-
-      if (this.modules[callName]) {
-        return { type: 'module_call', name: callName, args, module: this.modules[callName] };
+      this.expect('op', '(');
+      const assigns = [];
+      while (!this.matchOp(')')) {
+        if (this.eof()) throw new Error('unclosed let');
+        if (this.matchOp(',')) continue;
+        const vname = this.expect('id').value;
+        this.expect('op', '=');
+        const val = this.parseExpr();
+        assigns.push({ name: vname, val });
       }
-      // unknown → skip
-      return null;
+      const body = this.parseStatement();
+      return { type: 'let', assigns, body };
     }
 
-    while (this.peek() && ![';','}'].includes(this.peek())) this.next();
-    if (this.peek() === ';') this.next();
+    if (t.type === 'id' && this.peek(1) && this.peek(1).type === 'op' && this.peek(1).value === '=') {
+      const vname = this.next().value;
+      this.next();
+      const val = this.parseExpr();
+      return { type: 'assign', name: vname, val };
+    }
+
+    if (t.type === 'id') {
+      this.next();
+      if (!this.matchOp('(')) return null;
+      const args = this.parseArgs();
+      this.expect('op', ')');
+      let body = null;
+      const nt = this.peek();
+      if (nt && !(nt.type === 'op' && (nt.value === ';' || nt.value === '}' || nt.value === ')'))) {
+        body = this.parseStatement();
+      }
+      return { type: 'call', name: t.value, args, body };
+    }
+
+    this.next();
     return null;
   }
 
-  parseForLoop() {
-    this.expect('for');
-    this.expect('(');
-    const varName = this.next();
-    this.expect('=');
-    const rangeVal = this.parseExpression();
-
-    if (!rangeVal || !rangeVal.__range__) {
-      throw new Error('for loop butuh range [start : end]');
-    }
-    this.expect(')');
-
-    // Parse body dengan env i = start
-    const savedEnv = Object.assign({}, this.env);
-    this.env[varName] = rangeVal.start;
-
-    let body = [];
-    if (this.peek() === '{') {
+  parseRange() {
+    if (this.peek() && this.peek().type === 'op' && this.peek().value === '[') {
       this.next();
-      body = this.parseBlock(true);
-      this.expect('}');
-    } else {
-      const c = this.parseStatement();
-      if (c) body.push(c);
+      const start = this.parseExpr();
+      if (this.matchOp(':')) {
+        const a = this.parseExpr();
+        if (this.matchOp(':')) {
+          const end = this.parseExpr();
+          this.expect('op', ']');
+          return { type: 'range', start, step: a, end };
+        }
+        this.expect('op', ']');
+        return { type: 'range', start, step: null, end: a };
+      }
+      const items = [start];
+      while (this.matchOp(',')) items.push(this.parseExpr());
+      this.expect('op', ']');
+      return { type: 'list', items };
     }
-    if (this.peek() === ';') this.next();
-
-    this.env = savedEnv;
-
-    return {
-      type: 'for',
-      varName,
-      range: rangeVal,
-      body
-    };
+    return { type: 'expr', value: this.parseExpr() };
   }
 
   parseArgs() {
-    this.expect('(');
-    const args = [];
-    while (this.peek() && this.peek() !== ')') {
-      const startIdx = this.i;
-      if (/^[A-Za-z_]/.test(this.peek()) && this.peek(1) === '=' && this.peek(2) !== '=') {
-        const key = this.next();
-        this.next(); // '='
-        const value = this.parseExpression();
-        const rawTokens = this.t.slice(startIdx + 2, this.i); // skip key '='
-        args.push({ key, value, rawTokens });
+    const positional = [];
+    const named = {};
+    while (!this.eof() && !(this.peek().type === 'op' && this.peek().value === ')')) {
+      if (this.matchOp(',')) continue;
+      const t = this.peek();
+      if (t.type === 'id' && this.peek(1) && this.peek(1).type === 'op' && this.peek(1).value === '=') {
+        const name = this.next().value;
+        this.next();
+        named[name] = this.parseExpr();
       } else {
-        const value = this.parseExpression();
-        const rawTokens = this.t.slice(startIdx, this.i);
-        args.push({ value, rawTokens });
+        positional.push(this.parseExpr());
       }
-      if (this.peek() === ',') this.next();
-      else break;
     }
-    this.expect(')');
-    return args;
+    return { positional, named };
   }
 
-  /* ---------- EXPRESSION PARSER (precedence climbing) ---------- */
-  parseExpression() { return this.parseLogicalOr(); }
-
+  parseExpr() { return this.parseLogicalOr(); }
   parseLogicalOr() {
     let left = this.parseLogicalAnd();
-    while (this.peek() === '||') {
-      this.next();
-      const right = this.parseLogicalAnd();
-      left = (left || right) ? 1 : 0;
-    }
+    while (this.matchOp('||')) left = { type: 'binop', op: '||', left, right: this.parseLogicalAnd() };
     return left;
   }
   parseLogicalAnd() {
     let left = this.parseEquality();
-    while (this.peek() === '&&') {
-      this.next();
-      const right = this.parseEquality();
-      left = (left && right) ? 1 : 0;
-    }
+    while (this.matchOp('&&')) left = { type: 'binop', op: '&&', left, right: this.parseEquality() };
     return left;
   }
   parseEquality() {
     let left = this.parseComparison();
-    while (['==','!='].includes(this.peek())) {
-      const op = this.next();
-      const right = this.parseComparison();
-      left = op === '==' ? (left === right ? 1 : 0) : (left !== right ? 1 : 0);
+    while (true) {
+      const t = this.peek();
+      if (t && t.type === 'op' && (t.value === '==' || t.value === '!=')) {
+        this.next();
+        left = { type: 'binop', op: t.value, left, right: this.parseComparison() };
+      } else break;
     }
     return left;
   }
   parseComparison() {
-    let left = this.parseAdditive();
-    while (['<','>','<=','>='].includes(this.peek())) {
-      const op = this.next();
-      const right = this.parseAdditive();
-      switch (op) {
-        case '<':  left = left <  right ? 1 : 0; break;
-        case '>':  left = left >  right ? 1 : 0; break;
-        case '<=': left = left <= right ? 1 : 0; break;
-        case '>=': left = left >= right ? 1 : 0; break;
-      }
+    let left = this.parseAdd();
+    while (true) {
+      const t = this.peek();
+      if (t && t.type === 'op' && ['<','>','<=','>='].includes(t.value)) {
+        this.next();
+        left = { type: 'binop', op: t.value, left, right: this.parseAdd() };
+      } else break;
     }
     return left;
   }
-  parseAdditive() {
-    let left = this.parseMultiplicative();
-    while (this.peek() === '+' || this.peek() === '-') {
-      const op = this.next();
-      const right = this.parseMultiplicative();
-      left = op === '+' ? left + right : left - right;
+  parseAdd() {
+    let left = this.parseMul();
+    while (true) {
+      const t = this.peek();
+      if (t && t.type === 'op' && (t.value === '+' || t.value === '-')) {
+        this.next();
+        left = { type: 'binop', op: t.value, left, right: this.parseMul() };
+      } else break;
     }
     return left;
   }
-  parseMultiplicative() {
+  parseMul() {
     let left = this.parseUnary();
-    while (['*','/','%'].includes(this.peek())) {
-      const op = this.next();
-      const right = this.parseUnary();
-      if (op === '*') left = left * right;
-      else if (op === '/') left = left / right;
-      else left = left % right;
+    while (true) {
+      const t = this.peek();
+      if (t && t.type === 'op' && (t.value === '*' || t.value === '/' || t.value === '%')) {
+        this.next();
+        left = { type: 'binop', op: t.value, left, right: this.parseUnary() };
+      } else break;
     }
     return left;
   }
   parseUnary() {
-    if (this.peek() === '-') { this.next(); return -this.parseUnary(); }
-    if (this.peek() === '+') { this.next(); return  this.parseUnary(); }
-    if (this.peek() === '!') { this.next(); return this.parseUnary() ? 0 : 1; }
+    const t = this.peek();
+    if (t && t.type === 'op' && (t.value === '-' || t.value === '!')) {
+      this.next();
+      return { type: 'unary', op: t.value, value: this.parseUnary() };
+    }
     return this.parsePrimary();
   }
-
   parsePrimary() {
-    const tok = this.next();
-
-    // Array atau range
-    if (tok === '[') {
-      const items = [];
-      let isRange = false, step = null;
-      while (this.peek() !== ']') {
-        items.push(this.parseExpression());
-        if (this.peek() === ':') {
-          isRange = true;
-          this.next();
-          const second = this.parseExpression();
-          if (this.peek() === ':') {
-            this.next();
-            const third = this.parseExpression();
-            step = second;
-            items.push(third);
-          } else {
-            items.push(second);
-          }
-          break;
+    const t = this.next();
+    if (!t) throw new Error('unexpected end of expression');
+    if (t.type === 'num') return { type: 'num', value: t.value };
+    if (t.type === 'str') return { type: 'str', value: t.value };
+    if (t.type === 'op' && t.value === '(') {
+      const e = this.parseExpr();
+      this.expect('op', ')');
+      return e;
+    }
+    if (t.type === 'op' && t.value === '[') {
+      if (this.matchOp(']')) return { type: 'vec', items: [] };
+      const first = this.parseExpr();
+      if (this.matchOp(':')) {
+        const a = this.parseExpr();
+        if (this.matchOp(':')) {
+          const end = this.parseExpr();
+          this.expect('op', ']');
+          return { type: 'range', start: first, step: a, end };
         }
-        if (this.peek() === ',') this.next();
-        else break;
+        this.expect('op', ']');
+        return { type: 'range', start: first, step: null, end: a };
       }
-      this.expect(']');
-      if (isRange) {
-        const start = items[0];
-        const end = items[items.length - 1];
-        const s = step !== null ? step : (start <= end ? 1 : -1);
-        return { __range__: true, start, step: s, end };
-      }
-      return items;
+      const items = [first];
+      while (this.matchOp(',')) items.push(this.parseExpr());
+      this.expect('op', ']');
+      return { type: 'vec', items };
     }
-
-    if (typeof tok === 'string' && /^".*"$/.test(tok)) return tok.slice(1, -1);
-    if (typeof tok === 'string' && /^\d/.test(tok)) return parseFloat(tok);
-
-    if (typeof tok === 'string' && /^[A-Za-z_]/.test(tok)) {
-      if (this.peek() === '(') {
+    if (t.type === 'id') {
+      if (this.peek() && this.peek().type === 'op' && this.peek().value === '(') {
+        this.next();
         const args = this.parseArgs();
-        return this.callFunction(tok, args);
+        this.expect('op', ')');
+        return { type: 'func', name: t.value, args };
       }
-      if (tok in this.env) return this.env[tok];
-      if (tok === 'PI') return Math.PI;
-      return 0;
+      if (t.value === 'true') return { type: 'bool', value: true };
+      if (t.value === 'false') return { type: 'bool', value: false };
+      if (t.value === 'undef') return { type: 'undef' };
+      return { type: 'id', name: t.value };
     }
-
-    if (typeof tok === 'string' && tok.startsWith('$')) {
-      return this.env[tok] ?? 0;
-    }
-
-    if (tok === '(') {
-      const v = this.parseExpression();
-      this.expect(')');
-      return v;
-    }
-
-    const n = parseFloat(tok);
-    return isNaN(n) ? 0 : n;
-  }
-
-  callFunction(name, args) {
-    switch (name) {
-      case 'sin':   return Math.sin(args[0]);
-      case 'cos':   return Math.cos(args[0]);
-      case 'tan':   return Math.tan(args[0]);
-      case 'asin':  return Math.asin(args[0]);
-      case 'acos':  return Math.acos(args[0]);
-      case 'atan':  return Math.atan(args[0]);
-      case 'atan2': return Math.atan2(args[0], args[1]);
-      case 'sqrt':  return Math.sqrt(args[0]);
-      case 'abs':   return Math.abs(args[0]);
-      case 'floor': return Math.floor(args[0]);
-      case 'ceil':  return Math.ceil(args[0]);
-      case 'round': return Math.round(args[0]);
-      case 'pow':   return Math.pow(args[0], args[1]);
-      case 'min':   return Math.min(...args);
-      case 'max':   return Math.max(...args);
-      case 'len':   return Array.isArray(args[0]) ? args[0].length : 1;
-      default:      return 0;
-    }
+    throw new Error(`unexpected token ${t.type} "${t.value}"`);
   }
 }
 
-/* ============ PARSER ENTRY ============ */
-let globalModules = {};
-
-function parseSCAD(code) {
-  code = code.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-
-  const tokens = tokenize(code);
-  const parser = new Parser(tokens);
-  const nodes = parser.parseBlock();
-  const topEnv = Object.assign({}, parser.env);
-  globalModules = parser.modules;
-
-  while (modelGroup.children.length) {
-    const obj = modelGroup.children.pop();
-    obj.traverse?.(o => o.geometry?.dispose?.());
-    obj.geometry?.dispose?.();
+/* ========================= INTERPRETER ========================= */
+class Interpreter {
+  constructor(program, globalFn) {
+    this.modules = program.modules;
+    this.statements = program.statements;
+    this.globalFn = globalFn;
+    this.globalScope = { $fn: globalFn, $fa: 12, $fs: 2, PI: Math.PI };
   }
 
-  nodes.forEach(n => {
-    const mesh = buildMesh(n, topEnv);
-    if (mesh) modelGroup.add(mesh);
-  });
-
-  document.getElementById('info').textContent =
-    `Objek: ${modelGroup.children.length} | Kamera: orbit`;
-}
-
-/* ---------- Re-evaluate args dengan env lokal ---------- */
-function reEvalArgs(args, env) {
-  return args.map(a => {
-    if (a && a.rawTokens) {
-      try {
-        const v = evaluateTokens(a.rawTokens, env);
-        return a.key !== undefined ? { key: a.key, value: v } : v;
-      } catch (e) {
-        return a.key !== undefined ? { key: a.key, value: a.value } : a.value;
+  evalExpr(e, scope) {
+    if (!e) return null;
+    switch (e.type) {
+      case 'num': return e.value;
+      case 'str': return e.value;
+      case 'bool': return e.value;
+      case 'undef': return undefined;
+      case 'vec': return e.items.map(x => this.evalExpr(x, scope));
+      case 'unary':
+        if (e.op === '-') return -this.evalExpr(e.value, scope);
+        if (e.op === '!') return !this.evalExpr(e.value, scope);
+        return null;
+      case 'id':
+        if (e.name in scope) return scope[e.name];
+        if (e.name in this.globalScope) return this.globalScope[e.name];
+        return undefined;
+      case 'binop': {
+        const a = this.evalExpr(e.left, scope);
+        const b = this.evalExpr(e.right, scope);
+        switch (e.op) {
+          case '+':
+            if (typeof a === 'number' && typeof b === 'number') return a + b;
+            if (Array.isArray(a) && Array.isArray(b)) return a.map((v,i)=>v+(b[i]||0));
+            return a + b;
+          case '-':
+            if (typeof a === 'number' && typeof b === 'number') return a - b;
+            if (Array.isArray(a) && Array.isArray(b)) return a.map((v,i)=>v-(b[i]||0));
+            return a - b;
+          case '*':
+            if (typeof a === 'number' && typeof b === 'number') return a * b;
+            if (Array.isArray(a) && typeof b === 'number') return a.map(v=>v*b);
+            if (typeof a === 'number' && Array.isArray(b)) return b.map(v=>v*a);
+            return a * b;
+          case '/': return a / b;
+          case '%': return a % b;
+          case '==': return a === b;
+          case '!=': return a !== b;
+          case '<': return a < b;
+          case '>': return a > b;
+          case '<=': return a <= b;
+          case '>=': return a >= b;
+          case '&&': return a && b;
+          case '||': return a || b;
+        }
+        return null;
+      }
+      case 'func': {
+        const args = e.args.positional.map(a => this.evalExpr(a, scope));
+        const fname = e.name.toLowerCase();
+        const n = (x) => (x === undefined ? 0 : x);
+        switch (fname) {
+          case 'sin': return Math.sin(n(args[0]) * Math.PI / 180);
+          case 'cos': return Math.cos(n(args[0]) * Math.PI / 180);
+          case 'tan': return Math.tan(n(args[0]) * Math.PI / 180);
+          case 'asin': return Math.asin(n(args[0])) * 180 / Math.PI;
+          case 'acos': return Math.acos(n(args[0])) * 180 / Math.PI;
+          case 'atan': return Math.atan(n(args[0])) * 180 / Math.PI;
+          case 'atan2': return Math.atan2(n(args[0]), n(args[1])) * 180 / Math.PI;
+          case 'sqrt': return Math.sqrt(n(args[0]));
+          case 'abs': return Math.abs(n(args[0]));
+          case 'min': return Math.min(...args);
+          case 'max': return Math.max(...args);
+          case 'floor': return Math.floor(n(args[0]));
+          case 'ceil': return Math.ceil(n(args[0]));
+          case 'round': return Math.round(n(args[0]));
+          case 'pow': return Math.pow(n(args[0]), n(args[1]));
+          case 'len': return Array.isArray(args[0]) ? args[0].length : 0;
+          case 'concat': return args.flat();
+          case 'str': return args.join('');
+          case 'norm': return Math.hypot(...(args[0] || []));
+          case 'cross': {
+            const [a, b] = args;
+            if (Array.isArray(a) && Array.isArray(b) && a.length >= 3 && b.length >= 3) {
+              return [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]];
+            }
+            return [0,0,0];
+          }
+        }
+        return 0;
+      }
+      case 'range': {
+        const start = this.evalExpr(e.start, scope);
+        const end = this.evalExpr(e.end, scope);
+        const step = e.step ? this.evalExpr(e.step, scope) : (end >= start ? 1 : -1);
+        return { __range: true, start, end, step };
       }
     }
-    return a;
-  });
-}
-
-/* ---------- Builder ---------- */
-function buildMesh(node, env) {
-  env = env || {};
-
-  if (node.type === 'primitive') return buildPrimitive(node, env);
-
-  if (node.type === 'transform') {
-    const evaluated = { ...node, args: reEvalArgs(node.args || [], env) };
-    const childNodes = node.children.map(c => buildMesh(c, env)).filter(Boolean);
-    if (childNodes.length === 0) return null;
-    const group = new THREE.Group();
-    childNodes.forEach(c => group.add(c));
-    applyTransform(group, evaluated);
-    return group;
+    return null;
   }
 
-  if (node.type === 'for') {
-    const group = new THREE.Group();
-    const { start, step, end } = node.range;
-    for (let v = start; step > 0 ? v <= end : v >= end; v += step) {
-      const localEnv = Object.assign({}, env);
-      localEnv[node.varName] = v;
-      node.body.forEach(child => {
-        const mesh = buildMesh(child, localEnv);
-        if (mesh) group.add(mesh);
+  evalRange(range, scope) {
+    if (range.type === 'list') return range.items.map(x => this.evalExpr(x, scope));
+    if (range.type === 'range') {
+      const start = this.evalExpr(range.start, scope);
+      const end = this.evalExpr(range.end, scope);
+      const step = range.step ? this.evalExpr(range.step, scope) : (end >= start ? 1 : -1);
+      const out = [];
+      if (step === 0) return out;
+      if (step > 0) for (let i = start; i <= end + 1e-9; i += step) out.push(i);
+      else for (let i = start; i >= end - 1e-9; i += step) out.push(i);
+      return out;
+    }
+    const v = this.evalExpr(range.value, scope);
+    if (v && v.__range) {
+      const out = [];
+      for (let i = v.start; v.step > 0 ? i <= v.end : i >= v.end; i += v.step) out.push(i);
+      return out;
+    }
+    return Array.isArray(v) ? v : [v];
+  }
+
+  run() { return this.execBlock(this.statements, Object.assign({}, this.globalScope)); }
+
+  execBlock(statements, scope) {
+    const objs = [];
+    for (const stmt of statements) {
+      const r = this.execStatement(stmt, scope);
+      if (Array.isArray(r)) objs.push(...r.filter(Boolean));
+      else if (r) objs.push(r);
+    }
+    return objs;
+  }
+
+  execStatement(stmt, scope) {
+    if (!stmt) return null;
+    switch (stmt.type) {
+      case 'block': return this.execBlock(stmt.body, Object.assign({}, scope));
+      case 'assign': scope[stmt.name] = this.evalExpr(stmt.val, scope); return null;
+      case 'modifier': return this.execStatement(stmt.body, scope);
+      case 'if': {
+        const c = this.evalExpr(stmt.cond, scope);
+        if (c) return this.execStatement(stmt.then, Object.assign({}, scope));
+        if (stmt.else) return this.execStatement(stmt.else, Object.assign({}, scope));
+        return null;
+      }
+      case 'for': {
+        const values = this.evalRange(stmt.range, scope);
+        const out = [];
+        for (const v of values) {
+          const s = Object.assign({}, scope);
+          s[stmt.var] = v;
+          const r = this.execStatement(stmt.body, s);
+          if (Array.isArray(r)) out.push(...r.filter(Boolean));
+          else if (r) out.push(r);
+        }
+        return out;
+      }
+      case 'let': {
+        const s = Object.assign({}, scope);
+        for (const a of stmt.assigns) s[a.name] = this.evalExpr(a.val, s);
+        return this.execStatement(stmt.body, s);
+      }
+      case 'call': return this.execCall(stmt, scope);
+    }
+    return null;
+  }
+
+  evalArgsToObj(args, scope, defaults, posNames) {
+    const out = Object.assign({}, defaults || {});
+    if (args) {
+      posNames = posNames || [];
+      args.positional.forEach((e, i) => {
+        if (i < posNames.length) out[posNames[i]] = this.evalExpr(e, scope);
+        else out['_' + i] = this.evalExpr(e, scope);
       });
+      for (const k in args.named) out[k] = this.evalExpr(args.named[k], scope);
     }
-    return group;
+    return out;
   }
 
-  if (node.type === 'module_call') {
-    // Eval args
-    const evalArgs = reEvalArgs(node.args || [], env);
-    // Buat env lokal dengan parameter
-    const localEnv = Object.assign({}, env);
-    node.module.params.forEach((p, i) => {
-      let val = 0;
-      // Cari named arg
-      const named = evalArgs.find(a => a && a.key === p);
-      if (named) val = named.value;
-      else if (evalArgs[i] !== undefined) {
-        const pos = evalArgs[i];
-        val = (pos && pos.value !== undefined) ? pos.value : pos;
-      }
-      localEnv[p] = val;
-    });
+  execCall(stmt, scope) {
+    const { name, args, body } = stmt;
 
-    const group = new THREE.Group();
-    node.module.body.forEach(child => {
-      const mesh = buildMesh(child, localEnv);
-      if (mesh) group.add(mesh);
-    });
-    return group;
-  }
-
-  return null;
-}
-
-function getArg(args, index, key, fallback) {
-  if (key) {
-    for (const a of args) {
-      if (a && typeof a === 'object' && a.key === key) return a.value;
-    }
-  }
-  const positional = args.filter(a => typeof a !== 'object' || a.key === undefined);
-  if (positional[index] !== undefined) return positional[index];
-  return fallback;
-}
-
-function buildPrimitive({ name, args }, env) {
-  const evaluated = reEvalArgs(args, env);
-  let geom;
-
-  if (name === 'cube') {
-    let size = getArg(evaluated, 0, 'size', 10);
-    if (typeof size === 'number') size = [size, size, size];
-    const [sx, sy, sz] = size;
-    geom = new THREE.BoxGeometry(sx, sy, sz);
-    geom.translate(sx/2, sy/2, sz/2);
-  }
-  else if (name === 'sphere') {
-    let r = getArg(evaluated, 0, 'r', 5);
-    if (typeof r !== 'number') r = 5;
-    geom = new THREE.SphereGeometry(r, 48, 32);
-    geom.translate(r, r, r);
-  }
-  else if (name === 'cylinder') {
-    let h  = getArg(evaluated, 0, 'h', 10);
-    let r  = getArg(evaluated, 1, 'r',  null);
-    let r1 = getArg(evaluated, 1, 'r1', null);
-    let r2 = getArg(evaluated, 2, 'r2', null);
-    let d  = getArg(evaluated, 1, 'd',  null);
-    let d1 = getArg(evaluated, 1, 'd1', null);
-    let d2 = getArg(evaluated, 2, 'd2', null);
-
-    if (d  != null) { r1 = d/2;  r2 = d/2; }
-    if (d1 != null) { r1 = d1/2; }
-    if (d2 != null) { r2 = d2/2; }
-    if (r  != null) { r1 = r; r2 = r; }
-    if (r1 == null) r1 = 3;
-    if (r2 == null) r2 = 3;
-
-    geom = new THREE.CylinderGeometry(r2, r1, h, 48, 1);
-    geom.rotateX(Math.PI / 2);
-    geom.translate(0, 0, h / 2);
-  }
-
-  if (!geom) return null;
-  return new THREE.Mesh(geom, material);
-}
-
-function applyTransform(group, node) {
-  const args = node.args || [];
-  const first = args.find(a => typeof a !== 'object' || a.key === undefined);
-
-  if (node.name === 'translate') {
-    const v = Array.isArray(first) ? first : [0,0,0];
-    group.position.set(v[0]||0, v[1]||0, v[2]||0);
-  }
-  else if (node.name === 'rotate') {
-    const v = Array.isArray(first) ? first : [0,0,0];
-    group.rotation.set(
-      THREE.MathUtils.degToRad(v[0]||0),
-      THREE.MathUtils.degToRad(v[1]||0),
-      THREE.MathUtils.degToRad(v[2]||0),
-      'ZYX'
-    );
-  }
-  else if (node.name === 'scale') {
-    const v = Array.isArray(first) ? first : [1,1,1];
-    group.scale.set(v[0]||1, v[1]||1, v[2]||1);
-  }
-  else if (node.name === 'mirror') {
-    const v = Array.isArray(first) ? first : [1,0,0];
-    if (v[0]) group.scale.x *= -1;
-    if (v[1]) group.scale.y *= -1;
-    if (v[2]) group.scale.z *= -1;
-  }
-  else if (node.name === 'color') {
-    const c = Array.isArray(first) ? null : first;
-    const map = {
-      red:0xff0000, green:0x00ff00, blue:0x0000ff,
-      yellow:0xffff00, cyan:0x00ffff, magenta:0xff00ff,
-      orange:0xffa500, white:0xffffff, black:0x000000,
-      gray:0x808080, grey:0x808080, pink:0xffc0cb,
-      purple:0x800080, brown:0xa52a2a, lime:0x00ff00,
-      navy:0x000080, teal:0x008080, tan:0xd2b48c,
-      silver:0xc0c0c0, gold:0xffd700, crimson:0xdc143c,
-      darkslategray:0x2f4f4f, dimgray:0x696969,
-      deepskyblue:0x00bfff, saddlebrown:0x8b4513,
-      steelblue:0x4682b4, firebrick:0xb22222
-    };
-    let hex = 0xffd400;
-    if (typeof c === 'string' && map[c.toLowerCase()] !== undefined) {
-      hex = map[c.toLowerCase()];
-    }
-    group.traverse(o => {
-      if (o.isMesh) {
-        o.material = new THREE.MeshStandardMaterial({
-          color: hex, metalness: 0.15, roughness: 0.55
+    if (this.modules[name]) {
+      const mod = this.modules[name];
+      const modScope = Object.assign({}, scope);
+      const posNames = mod.params.map(p => p.name);
+      if (args) {
+        args.positional.forEach((e, i) => {
+          if (i < posNames.length) modScope[posNames[i]] = this.evalExpr(e, scope);
         });
+        for (const k in args.named) modScope[k] = this.evalExpr(args.named[k], scope);
       }
-    });
+      mod.params.forEach(p => {
+        if (!(p.name in modScope) && p.def) modScope[p.name] = this.evalExpr(p.def, modScope);
+      });
+      const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+      modScope.children = Array.isArray(children) ? children : (children ? [children] : []);
+      return this.execStatement(mod.body, modScope);
+    }
+
+    const fn = scope.$fn || this.globalFn || 32;
+    const prim = name.toLowerCase();
+    const getSegs = (o) => Math.max(3, Math.floor(o.$fn || o.n || o.slices || fn));
+    const getRings = (o) => Math.max(3, Math.floor((o.$fn || o.n || fn) / 2));
+
+    const makeMesh = (geo, color) => {
+      const col = color || 0x6c9e3e;
+      const mat = new THREE.MeshStandardMaterial({
+        color: col, metalness: 0.15, roughness: 0.65,
+        side: THREE.DoubleSide, flatShading: false,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.userData.isOpenSCAD = true;
+      return m;
+    };
+
+    const groupWith = (children) => {
+      const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+      if (arr.length === 0) return null;
+      if (arr.length === 1) return arr[0];
+      const g = new THREE.Group();
+      arr.forEach(c => g.add(c));
+      g.userData.isOpenSCAD = true;
+      return g;
+    };
+
+    switch (prim) {
+      case 'cube': {
+        const o = this.evalArgsToObj(args, scope, { size: [1,1,1], center: false }, ['size', 'center']);
+        let s = o.size;
+        if (typeof s === 'number') s = [s, s, s];
+        if (!Array.isArray(s)) s = [1,1,1];
+        const geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
+        const mesh = makeMesh(geo, o._color);
+        if (o.center) mesh.position.set(0,0,0);
+        else mesh.position.set(s[0]/2, s[1]/2, s[2]/2);
+        return mesh;
+      }
+      case 'sphere': {
+        const o = this.evalArgsToObj(args, scope, { r: 1 }, ['r', 'd']);
+        const r = (o.d !== undefined && o.d !== null) ? o.d/2 : (o.r !== undefined ? o.r : 1);
+        const geo = new THREE.SphereGeometry(r, getSegs(o), getRings(o));
+        return makeMesh(geo, o._color);
+      }
+      case 'cylinder': {
+        const o = this.evalArgsToObj(args, scope,
+          { h: 1, r: 1, r1: null, r2: null, center: false, $fn: fn },
+          ['h', 'r1', 'r2', 'center']);
+        const h = o.h !== undefined ? o.h : 1;
+        let r1 = (o.r1 !== null && o.r1 !== undefined) ? o.r1 :
+                 (o.r !== undefined ? o.r : (o.d !== undefined ? o.d/2 : 1));
+        let r2 = (o.r2 !== null && o.r2 !== undefined) ? o.r2 :
+                 (o.r !== undefined ? o.r : (o.d !== undefined ? o.d/2 : 1));
+        if (o.d1 !== undefined && o.d1 !== null) r1 = o.d1/2;
+        if (o.d2 !== undefined && o.d2 !== null) r2 = o.d2/2;
+        const geo = new THREE.CylinderGeometry(r2, r1, h, getSegs(o));
+        const mesh = makeMesh(geo, o._color);
+        mesh.position.set(0, o.center ? 0 : h/2, 0);
+        return mesh;
+      }
+      case 'polyhedron': {
+        const o = this.evalArgsToObj(args, scope, {}, ['points', 'faces', 'convexity']);
+        const pts = o.points || [], faces = o.faces || [];
+        const verts = [];
+        for (const f of faces) {
+          if (!Array.isArray(f)) continue;
+          for (let i = 1; i < f.length - 1; i++) {
+            const p0 = pts[f[0]], p1 = pts[f[i]], p2 = pts[f[i+1]];
+            if (!p0 || !p1 || !p2) continue;
+            verts.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
+          }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geo.computeVertexNormals();
+        return makeMesh(geo, o._color);
+      }
+      case 'translate': {
+        const o = this.evalArgsToObj(args, scope, { v: [0,0,0] }, ['v']);
+        const v = Array.isArray(o.v) ? o.v : [0,0,0];
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+        if (arr.length === 0) return null;
+        const grp = new THREE.Group();
+        arr.forEach(c => grp.add(c));
+        grp.position.set(v[0] || 0, v[1] || 0, v[2] || 0);
+        grp.userData.isOpenSCAD = true;
+        return grp;
+      }
+      case 'rotate': {
+        const o = this.evalArgsToObj(args, scope, { a: 0, v: [0,0,1] }, ['a', 'v']);
+        const a = o.a !== undefined ? o.a : 0;
+        const v = Array.isArray(o.v) ? o.v : [0,0,1];
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+        if (arr.length === 0) return null;
+        const grp = new THREE.Group();
+        arr.forEach(c => grp.add(c));
+        if (Array.isArray(a)) {
+          grp.rotation.set((a[0]||0)*Math.PI/180, (a[1]||0)*Math.PI/180, (a[2]||0)*Math.PI/180);
+        } else {
+          const ax = new THREE.Vector3(v[0]||0, v[1]||0, v[2]||1).normalize();
+          grp.quaternion.setFromAxisAngle(ax, a * Math.PI / 180);
+        }
+        grp.userData.isOpenSCAD = true;
+        return grp;
+      }
+      case 'scale': {
+        const o = this.evalArgsToObj(args, scope, { v: [1,1,1] }, ['v']);
+        let v = o.v;
+        if (typeof v === 'number') v = [v, v, v];
+        if (!Array.isArray(v)) v = [1,1,1];
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+        if (arr.length === 0) return null;
+        const grp = new THREE.Group();
+        arr.forEach(c => grp.add(c));
+        grp.scale.set(v[0] || 1, v[1] || 1, v[2] || 1);
+        grp.userData.isOpenSCAD = true;
+        return grp;
+      }
+      case 'mirror': {
+        const o = this.evalArgsToObj(args, scope, { v: [1,0,0] }, ['v']);
+        const v = Array.isArray(o.v) ? o.v : [1,0,0];
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+        if (arr.length === 0) return null;
+        const grp = new THREE.Group();
+        arr.forEach(c => grp.add(c));
+        const m = new THREE.Matrix4();
+        const n = new THREE.Vector3(v[0]||0, v[1]||0, v[2]||0);
+        if (n.length() < 1e-6) n.set(1,0,0);
+        n.normalize();
+        m.set(
+          1-2*n.x*n.x, -2*n.x*n.y, -2*n.x*n.z, 0,
+          -2*n.x*n.y, 1-2*n.y*n.y, -2*n.y*n.z, 0,
+          -2*n.x*n.z, -2*n.y*n.z, 1-2*n.z*n.z, 0,
+          0, 0, 0, 1
+        );
+        grp.applyMatrix4(m);
+        grp.userData.isOpenSCAD = true;
+        return grp;
+      }
+      case 'union': {
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        return groupWith(children);
+      }
+      case 'difference':
+      case 'intersection': {
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+        if (arr.length === 0) return null;
+        arr.forEach((c, i) => { if (i > 0) c.visible = false; });
+        return groupWith(arr);
+      }
+      case 'color': {
+        const o = this.evalArgsToObj(args, scope, {}, ['c', 'alpha']);
+        const children = body ? this.execStatement(body, Object.assign({}, scope)) : null;
+        const arr = Array.isArray(children) ? children.filter(Boolean) : (children ? [children] : []);
+        let colHex = 0x6c9e3e;
+        const c = o.c;
+        if (Array.isArray(c) && c.length >= 3) {
+          colHex = (Math.floor(c[0]*255)<<16) | (Math.floor(c[1]*255)<<8) | Math.floor(c[2]*255);
+        } else if (typeof c === 'string') {
+          colHex = parseInt(c.replace('#',''), 16) || 0x6c9e3e;
+        }
+        arr.forEach(ch => ch.traverse(n => {
+          if (n.isMesh && n.material) {
+            n.material = n.material.clone();
+            n.material.color.setHex(colHex);
+          }
+        }));
+        return groupWith(arr);
+      }
+      case 'render':
+      case 'children': {
+        if (scope.children) {
+          const arr = Array.isArray(scope.children) ? scope.children : [scope.children];
+          return groupWith(arr);
+        }
+        return null;
+      }
+      default: {
+        if (body) {
+          const children = this.execStatement(body, Object.assign({}, scope));
+          return Array.isArray(children) ? children : (children ? [children] : null);
+        }
+        return null;
+      }
+    }
   }
 }
 
-/* ============ MONACO EDITOR ============ */
-let editor = null;
-const isMobile = () => window.innerWidth <= 768;
-
-require.config({
-  paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }
-});
-require(['vs/editor/editor.main'], () => {
-  monaco.editor.defineTheme('webscad-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'keyword', foreground: '4ec9b0' },
-      { token: 'number',  foreground: 'b5cea8' },
-      { token: 'string',  foreground: 'ce9178' },
-      { token: 'comment', foreground: '6a9955' }
-    ],
-    colors: {
-      'editor.background': '#1e1e1e',
-      'editor.lineHighlightBackground': '#2a2d2e',
-      'editor.lineNumberForeground': '#858585'
-    }
-  });
-
-  editor = monaco.editor.create(document.getElementById('editor'), {
-    value: `// WebSCAD — Cover LED WS2812B 8 LED
-// F5 = preview, F6 = compile final, lalu Export STL
-
-// ---------- Parameter ----------
-led_count       = 8;
-led_pitch       = 10;
-led_dia         = 5.5;
-pcb_width       = 10;
-pcb_thickness   = 1.6;
-wall            = 2;
-clearance       = 0.4;
-height          = 12;
-hole_side_dia   = 6;
-
-// ---------- Perhitungan ----------
-inner_length = led_pitch * (led_count - 1) + 10;
-inner_width  = pcb_width + clearance;
-outer_length = inner_length + 2 * wall;
-outer_width  = inner_width + 2 * wall;
-total_height = height + wall;
-
-$fn = 64;
-
-// ---------- Render ----------
-difference() {
-    // Kotak luar
-    cube([outer_length, outer_width, total_height]);
-
-    // Rongga dalam
-    translate([wall, wall, wall])
-        cube([inner_length, inner_width, total_height]);
-
-    // Lubang LED di tutup atas
-    for (i = [0 : led_count-1]) {
-        translate([
-            wall + 5 + i * led_pitch,
-            outer_width / 2,
-            total_height - wall / 2
-        ])
-        cylinder(h = wall + 2, d = led_dia, center = true);
-    }
-
-    // Lubang samping kiri
-    translate([-1, outer_width / 2, wall + height / 2])
-        rotate([0, 90, 0])
-        cylinder(h = wall + 2, d = hole_side_dia);
-
-    // Lubang samping kanan
-    translate([outer_length + 1, outer_width / 2, wall + height / 2])
-        rotate([0, 90, 0])
-        cylinder(h = wall + 2, d = hole_side_dia);
-}
-`,
-    language: 'cpp',
-    theme: 'webscad-dark',
-    automaticLayout: true,
-    fontSize: isMobile() ? 13 : 14,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    fontFamily: 'Consolas, monospace',
-    wordWrap: 'on',
-    lineNumbers: 'on',
-    contextmenu: true,
-    quickSuggestions: false
-  });
-
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, render);
-  editor.addCommand(monaco.KeyCode.F5, render);
-  editor.addCommand(monaco.KeyCode.F6, compileFinal);
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA, () => {
-    const model = editor.getModel();
-    editor.setSelection(model.getFullModelRange());
-    editor.focus();
-  });
-
-  log('[info] Editor siap. F5 = preview, F6 = compile final.', 'success');
-  updateToolbarHeight();
-
-  setTimeout(render, 500);
-});
-
-/* ============ STATE EXPORT ============ */
-let compiledGeometry = null;
-let compiledMeshCount = 0;
-
-function setExportReady(ready, info = '') {
-  const btn = document.getElementById('exportBtn');
-  const badge = document.getElementById('statusBadge');
-
-  if (ready) {
-    btn.disabled = false;
-    btn.classList.add('ready');
-    badge.textContent = `✔ Siap export${info ? ' • ' + info : ''}`;
-    badge.classList.add('ready');
-  } else {
-    btn.disabled = true;
-    btn.classList.remove('ready');
-    badge.textContent = 'Belum di-compile';
-    badge.classList.remove('ready');
-  }
-}
-
-/* ============ AKSI RENDER (F5) ============ */
+/* ========================= RENDER ========================= */
 function render() {
-  if (!editor) { toast('Editor belum siap', 'error'); return; }
-  const code = editor.getValue();
-  try {
-    parseSCAD(code);
-    log('[render] Preview berhasil ✔', 'success');
-    toast('Preview sukses ✔', 'success');
+  if (!state.scene) return;
+  const t0 = performance.now();
 
-    if (compiledGeometry) {
-      compiledGeometry.dispose?.();
-      compiledGeometry = null;
-      setExportReady(false);
-      log('[info] Perubahan terdeteksi — silakan F6 lagi sebelum export', 'warn');
-    }
-
-    if (isMobile()) switchTab('viewer');
-  } catch (e) {
-    log('[error] ' + e.message, 'error');
-    toast('Error: ' + e.message, 'error');
-  }
-}
-
-/* ============ AKSI COMPILE (F6) ============ */
-function compileFinal() {
-  if (!editor) { toast('Editor belum siap', 'error'); return; }
-  const code = editor.getValue();
-
-  log('[F6] Memulai compile final...', 'warn');
-
-  try {
-    parseSCAD(code);
-    const t0 = performance.now();
-
-    const geometries = [];
-    let triangleCount = 0;
-
-    modelGroup.updateMatrixWorld(true);
-    modelGroup.traverse(obj => {
-      if (obj.isMesh && obj.geometry) {
-        const g = obj.geometry.clone();
-        g.applyMatrix4(obj.matrixWorld);
-        if (!g.attributes.normal) g.computeVertexNormals();
-        geometries.push(g);
-        triangleCount += g.index
-          ? g.index.count / 3
-          : g.attributes.position.count / 3;
+  const toRemove = [];
+  state.scene.traverse(o => {
+    if (o.userData && o.userData.isOpenSCAD) toRemove.push(o);
+  });
+  toRemove.forEach(o => {
+    if (o.parent) o.parent.remove(o);
+    o.traverse(n => {
+      if (n.geometry) n.geometry.dispose();
+      if (n.material) {
+        if (Array.isArray(n.material)) n.material.forEach(m => m.dispose());
+        else n.material.dispose();
       }
     });
+  });
+  state.sceneRoot = null;
 
-    if (geometries.length === 0) {
-      throw new Error('Tidak ada objek untuk di-compile');
-    }
-
-    const merged = mergeGeometries(geometries, false);
-    if (!merged) {
-      throw new Error('Gagal merge geometri (atribut tidak cocok)');
-    }
-    merged.computeVertexNormals();
-    merged.computeBoundingBox();
-
-    if (compiledGeometry) compiledGeometry.dispose?.();
-    compiledGeometry = merged;
-    compiledMeshCount = geometries.length;
-
-    const t1 = performance.now();
-    const bb = merged.boundingBox;
-    const size = new THREE.Vector3().subVectors(bb.max, bb.min);
-
-    log(`[F6] ✔ Compile selesai dalam ${(t1-t0).toFixed(1)} ms`, 'success');
-    log(`[F6]   ${geometries.length} mesh • ${triangleCount.toFixed(0)} triangle`, 'success');
-    log(`[F6]   Bounding box: ${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm`, 'success');
-
-    setExportReady(true, `${triangleCount.toFixed(0)} tri`);
-    toast('Compile sukses! Tombol Export STL aktif ✔', 'success');
-
-  } catch (e) {
-    log('[F6 error] ' + e.message, 'error');
-    toast('Compile gagal: ' + e.message, 'error');
-    setExportReady(false);
-  }
-}
-
-/* ============ EXPORT STL (FIXED UNTUK ANDROID) ============ */
-async function exportSTL() {
-  if (!compiledGeometry) {
-    toast('Tekan F6 (Compile) dulu sebelum export!', 'error');
-    log('[warn] Export ditolak — belum compile final', 'warn');
+  const code = window.editor ? window.editor.getValue() : '';
+  let objects = [];
+  try {
+    const tokens = tokenize(code);
+    const parser = new Parser(tokens);
+    const program = parser.parseProgram();
+    const interp = new Interpreter(program, state.globalFn);
+    objects = interp.run();
+  } catch (err) {
+    console.error(err);
+    toast('Parse error: ' + err.message, 'error');
+    setStatus('Error: ' + err.message, true);
     return;
   }
 
-  try {
-    const format = document.getElementById('formatSelect').value;
-    const exportMesh = new THREE.Mesh(compiledGeometry, new THREE.MeshStandardMaterial());
-    const exporter = new STLExporter();
+  const rootGroup = new THREE.Group();
+  rootGroup.userData.isOpenSCAD = true;
+  (Array.isArray(objects) ? objects : [objects]).forEach(o => { if (o) rootGroup.add(o); });
+  state.scene.add(rootGroup);
+  state.sceneRoot = rootGroup;
 
-    const ts = new Date().toISOString()
-      .replace(/[-:T]/g, '').slice(0, 15);
-    const filename = `webscad-${ts}.stl`;
-
-    let blob;
-    if (format === 'ascii') {
-      const stlString = exporter.parse(exportMesh, { binary: false });
-      blob = new Blob([stlString], { type: 'model/stl' });
-    } else {
-      const dataView = exporter.parse(exportMesh, { binary: true });
-      const uint8 = new Uint8Array(
-        dataView.buffer, dataView.byteOffset, dataView.byteLength
-      );
-      blob = new Blob([uint8], { type: 'model/stl' });
+  let verts = 0, faces = 0, objCount = 0;
+  rootGroup.traverse(n => {
+    if (n.isMesh && n.geometry) {
+      objCount++;
+      const pos = n.geometry.attributes.position;
+      if (pos) verts += pos.count;
+      if (n.geometry.index) faces += n.geometry.index.count / 3;
+      else if (pos) faces += pos.count / 3;
     }
+  });
 
-    const sizeKB = (blob.size / 1024).toFixed(1);
-    log(`[export] Menyiapkan file: ${filename} (${sizeKB} KB, ${format})`, 'warn');
+  const t1 = performance.now();
+  document.getElementById('propObjects').textContent = objCount;
+  document.getElementById('propVerts').textContent = verts.toLocaleString('id-ID');
+  document.getElementById('propFaces').textContent = Math.round(faces).toLocaleString('id-ID');
+  document.getElementById('propTime').textContent = (t1 - t0).toFixed(1) + ' ms';
+  document.getElementById('statusInfo').textContent = `📐 ${objCount} obj · ${verts} verts`;
+  setStatus('Render OK', false);
 
-    // METODE 1: File + navigator.share (Android)
-    try {
-      const file = new File([blob], filename, { type: 'model/stl' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: filename,
-          text: 'Model 3D dari WebSCAD'
-        });
-        log(`[export] ✔ STL dibagikan via Share — ${filename} (${sizeKB} KB)`, 'success');
-        toast(`Pilih "Save to Files" untuk simpan ${filename}`, 'success');
-        return;
-      }
-    } catch (shareErr) {
-      if (shareErr.name === 'AbortError') {
-        log('[export] Share dibatalkan user', 'warn');
-        toast('Share dibatalkan', 'error');
-        return;
-      }
-      log('[export] Share tidak tersedia: ' + shareErr.message, 'warn');
-    }
+  state.lastObjects = objCount;
+  state.lastVerts = verts;
+  state.lastFaces = Math.round(faces);
 
-    // METODE 2: Data URL base64
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = filename;
-      a.rel = 'noopener';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => document.body.removeChild(a), 300);
+  if (state.wireframe) {
+    rootGroup.traverse(n => {
+      if (n.isMesh && n.material) n.material.wireframe = true;
+    });
+  }
 
-      log(`[export] ✔ STL via Data URL — ${filename} (${sizeKB} KB)`, 'success');
-      toast(`STL terunduh ✔ (${sizeKB} KB)`, 'success');
-    };
-    reader.onerror = () => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 300);
-      log(`[export] ✔ STL via Blob URL (fallback) — ${filename}`, 'success');
-      toast(`STL terunduh ✔ (${sizeKB} KB)`, 'success');
-    };
-    reader.readAsDataURL(blob);
-
-  } catch (e) {
-    log('[export error] ' + e.message, 'error');
-    console.error(e);
-    toast('Export gagal: ' + e.message, 'error');
+  if (!state._hasRendered) {
+    fitCamera(rootGroup);
+    state._hasRendered = true;
   }
 }
 
-/* ============ TOMBOL EVENT ============ */
-document.getElementById('renderBtn').onclick = render;
-document.getElementById('compileBtn').onclick = compileFinal;
-document.getElementById('exportBtn').onclick = exportSTL;
+function fitCamera(obj) {
+  if (!obj || !state.camera) return;
+  const box = new THREE.Box3().setFromObject(obj);
+  if (box.isEmpty()) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 10);
+  const dist = maxDim * 2.2 + 10;
+  state.camera.position.set(center.x + dist * 0.7, center.y + dist * 0.6, center.z + dist * 0.7);
+  state.controls.target.copy(center);
+  state.controls.update();
+}
 
-document.getElementById('wireBtn').onclick = () => {
-  wireframeMode = !wireframeMode;
-  modelGroup.traverse(o => {
-    if (o.isMesh && o.material && !Array.isArray(o.material)) {
-      o.material.wireframe = wireframeMode;
+/* ========================= EXPORT STL ========================= */
+function collectTriangles(rootObj) {
+  const triangles = [];
+  rootObj.updateMatrixWorld(true);
+
+  rootObj.traverse(n => {
+    let visible = true;
+    let p = n;
+    while (p) {
+      if (p.visible === false) { visible = false; break; }
+      p = p.parent;
+    }
+    if (!visible) return;
+
+    if (n.isMesh && n.geometry) {
+      const geo = n.geometry;
+      const pos = geo.attributes.position;
+      if (!pos) return;
+      const index = geo.index;
+      const matrix = n.matrixWorld;
+
+      const vA = new THREE.Vector3();
+      const vB = new THREE.Vector3();
+      const vC = new THREE.Vector3();
+
+      const triCount = index ? index.count / 3 : pos.count / 3;
+
+      for (let t = 0; t < triCount; t++) {
+        let i0, i1, i2;
+        if (index) {
+          i0 = index.getX(t * 3);
+          i1 = index.getX(t * 3 + 1);
+          i2 = index.getX(t * 3 + 2);
+        } else {
+          i0 = t * 3;
+          i1 = t * 3 + 1;
+          i2 = t * 3 + 2;
+        }
+        vA.fromBufferAttribute(pos, i0).applyMatrix4(matrix);
+        vB.fromBufferAttribute(pos, i1).applyMatrix4(matrix);
+        vC.fromBufferAttribute(pos, i2).applyMatrix4(matrix);
+
+        const ab = new THREE.Vector3().subVectors(vB, vA);
+        const ac = new THREE.Vector3().subVectors(vC, vA);
+        const normal = new THREE.Vector3().crossVectors(ab, ac);
+        if (normal.lengthSq() > 1e-20) normal.normalize();
+        else normal.set(0, 0, 0);
+
+        triangles.push({
+          normal: [normal.x, normal.y, normal.z],
+          v: [
+            [vA.x, vA.y, vA.z],
+            [vB.x, vB.y, vB.z],
+            [vC.x, vC.y, vC.z],
+          ],
+        });
+      }
     }
   });
-  log(`[view] Wireframe ${wireframeMode ? 'ON' : 'OFF'}`);
-  toast('Wireframe ' + (wireframeMode ? 'ON' : 'OFF'));
+
+  return triangles;
+}
+
+function buildBinarySTLBuffer(triangles) {
+  const buffer = new ArrayBuffer(84 + triangles.length * 50);
+  const dv = new DataView(buffer);
+
+  const header = "OpenSCAD Web STL export";
+  const headerBytes = new TextEncoder().encode(header);
+  for (let i = 0; i < 80; i++) {
+    dv.setUint8(i, i < headerBytes.length ? headerBytes[i] : 0);
+  }
+  dv.setUint32(80, triangles.length, true);
+
+  let offset = 84;
+  for (const tri of triangles) {
+    const [nx, ny, nz] = tri.normal;
+    dv.setFloat32(offset, nx, true); offset += 4;
+    dv.setFloat32(offset, ny, true); offset += 4;
+    dv.setFloat32(offset, nz, true); offset += 4;
+    for (let k = 0; k < 3; k++) {
+      const v = tri.v[k];
+      dv.setFloat32(offset, v[0], true); offset += 4;
+      dv.setFloat32(offset, v[1], true); offset += 4;
+      dv.setFloat32(offset, v[2], true); offset += 4;
+    }
+    dv.setUint16(offset, 0, true); offset += 2;
+  }
+  return buffer;
+}
+
+function buildAsciiSTLText(triangles, precision = 6) {
+  const fmt = (x) => {
+    if (Object.is(x, -0)) x = 0;
+    return x.toFixed(precision);
+  };
+  const lines = ['solid openscad_web'];
+  for (const tri of triangles) {
+    const [nx, ny, nz] = tri.normal;
+    lines.push(`  facet normal ${fmt(nx)} ${fmt(ny)} ${fmt(nz)}`);
+    lines.push('    outer loop');
+    for (const v of tri.v) {
+      lines.push(`      vertex ${fmt(v[0])} ${fmt(v[1])} ${fmt(v[2])}`);
+    }
+    lines.push('    endloop');
+    lines.push('  endfacet');
+  }
+  lines.push('endsolid openscad_web');
+  return lines.join('\n');
+}
+
+/**
+ * EXPORT STL — versi v6 (perbaikan total)
+ * - TIDAK ADA pesan "dibatalkan" yang menghentikan proses.
+ * - Jika File System Access API gagal/dibatalkan → langsung fallback ke anchor download.
+ * - Setelah anchor download → selalu tampilkan link manual sebagai jaring pengaman.
+ */
+function exportSTL() {
+  if (!state.scene) {
+    toast('Scene belum siap', 'error');
+    return;
+  }
+
+  setStatus('Compiling (F6)...');
+  const t0 = performance.now();
+  render();
+  if (!state.sceneRoot) {
+    toast('Compile gagal, tidak ada geometri', 'error');
+    return;
+  }
+
+  const triangles = collectTriangles(state.sceneRoot);
+  if (triangles.length === 0) {
+    toast('Tidak ada geometri untuk diekspor', 'error');
+    return;
+  }
+
+  const fmt = document.getElementById('stlFormat').value;
+  const prec = parseInt(document.getElementById('stlPrecision').value) || 6;
+
+  let blob;
+  if (fmt === 'ascii') {
+    const text = buildAsciiSTLText(triangles, prec);
+    blob = new Blob([text], { type: 'model/stl' });
+  } else {
+    const buffer = buildBinarySTLBuffer(triangles);
+    blob = new Blob([buffer], { type: 'model/stl' });
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `openscad_export_${timestamp}.stl`;
+
+  // Strategi 1: File System Access API (jika tersedia)
+  if (window.showSaveFilePicker) {
+    window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{
+        description: 'STL 3D Model',
+        accept: { 'model/stl': ['.stl'] },
+      }],
+    }).then(async (handle) => {
+      // User memilih lokasi → tulis file
+      try {
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+
+        const t1 = performance.now();
+        const sizeKB = (blob.size / 1024).toFixed(1);
+        toast(`✅ STL disimpan: ${triangles.length} tri, ${sizeKB} KB`, 'success');
+        setStatus(`Export OK — ${triangles.length} tri, ${sizeKB} KB`);
+      } catch (writeErr) {
+        console.warn('Gagal tulis ke handle:', writeErr);
+        // Fallback ke anchor download
+        downloadBlobLegacy(blob, filename, triangles, t0);
+      }
+    }).catch((err) => {
+      // Ini yang sebelumnya jadi sumber bug!
+      // User batal, atau browser blokir dialog → JANGAN berhenti,
+      // langsung fallback ke anchor download (tanpa menampilkan "dibatalkan").
+      console.warn('showSaveFilePicker gagal/dibatalkan:', err && err.name);
+      downloadBlobLegacy(blob, filename, triangles, t0);
+    });
+    return;
+  }
+
+  // Strategi 2: anchor download (browser tanpa File System Access API)
+  downloadBlobLegacy(blob, filename, triangles, t0);
+}
+
+function downloadBlobLegacy(blob, filename, triangles, t0) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+
+    const t1 = performance.now();
+    const sizeKB = (blob.size / 1024).toFixed(1);
+    toast(`✅ STL diekspor: ${triangles.length} tri, ${sizeKB} KB`, 'success');
+    setStatus(`Export OK — ${triangles.length} tri, ${sizeKB} KB`);
+
+    showManualDownloadLink(blob, filename);
+  }, 900);
+}
+
+function showManualDownloadLink(blob, filename) {
+  const old = document.getElementById('manualDownloadBox');
+  if (old) old.remove();
+
+  const url = URL.createObjectURL(blob);
+  const box = document.createElement('div');
+  box.id = 'manualDownloadBox';
+  box.className = 'manual-dl-box';
+
+  // Persingkat nama file untuk tampilan supaya tidak overflow
+  const shortName = filename.length > 32
+    ? filename.slice(0, 18) + '…' + filename.slice(-10)
+    : filename;
+
+  box.innerHTML = `
+    <span>📁 File tidak tersimpan otomatis?</span>
+    <a href="${url}" download="${filename}">⬇ ${shortName}</a>
+    <button id="closeManualBox" title="Tutup">✕</button>
+  `;
+  document.body.appendChild(box);
+
+  document.getElementById('closeManualBox').onclick = () => {
+    box.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  setTimeout(() => {
+    if (box.parentNode) {
+      box.remove();
+      URL.revokeObjectURL(url);
+    }
+  }, 25000);
+}
+
+/* ========================= TEMPLATES ========================= */
+const TEMPLATES = {
+  triangle: `// Segitiga sama sisi (pakai polygon + linear_extrude di OpenSCAD asli)
+// Di web editor ini, kita pakai cylinder $fn=3 sebagai pendekatan
+
+// Segitiga datar (prisma tipis 3 sisi)
+rotate([0, 0, 90])
+  cylinder(h=1, r=6, $fn=3);
+
+// Segitiga sama sisi sebagai prisma 3D
+translate([20, 0, 0])
+  cylinder(h=4, r=6, $fn=3);
+
+// Segitiga siku-siku (polyhedron)
+translate([40, 0, 0])
+  polyhedron(
+    points=[[0,0,0], [10,0,0], [0,8,0], [0,0,3], [10,0,3], [0,8,3]],
+    faces=[[0,1,2], [3,4,5], [0,1,4,3], [1,2,5,4], [2,0,3,5]]
+  );
+`,
+
+  cube: `// Kubus dasar
+cube([10, 10, 10]);
+
+// Kubus dengan center=true
+translate([20, 0, 0])
+  cube([10, 10, 10], center=true);
+
+// Kubus berongga (difference)
+translate([40, 0, 0])
+  difference() {
+    cube([10, 10, 10], center=true);
+    cube([8, 8, 8], center=true);
+  }
+`,
+
+  sphere: `// Bola dengan $fn berbeda
+sphere(r=5, $fn=16);
+translate([20, 0, 0]) sphere(r=5, $fn=32);
+translate([40, 0, 0]) sphere(r=5, $fn=64);
+
+// Bola dengan warna
+translate([0, 20, 0]) color([1, 0.3, 0.3]) sphere(r=8);
+translate([20, 20, 0]) color([0.3, 1, 0.3]) sphere(r=8);
+translate([40, 20, 0]) color([0.3, 0.3, 1]) sphere(r=8);
+`,
+
+  cylinder: `// Silinder tunggal
+cylinder(h=10, r=5);
+
+// Silinder dengan dua jari-jari (kerucut)
+translate([20, 0, 0])
+  cylinder(h=10, r1=6, r2=2);
+
+// Silinder berongga
+translate([40, 0, 0])
+  difference() {
+    cylinder(h=10, r=6);
+    translate([0, 0, -1])
+      cylinder(h=12, r=4);
+  }
+`,
+
+  pyramid: `// Piramida dari cylinder $fn=4
+module piramida(ukuran=10, tinggi=12) {
+  cylinder(h=tinggi, r1=ukuran/2, r2=0, $fn=4);
+}
+
+piramida(10, 12);
+translate([20, 0, 0]) piramida(14, 16);
+translate([40, 0, 0]) piramida(8, 10);
+
+// Piramida berongga
+translate([0, 25, 0])
+  difference() {
+    piramida(14, 16);
+    translate([0, 0, 1])
+      piramida(10, 14);
+  }
+`,
+
+  torus: `// Torus dibuat dari banyak bola kecil melingkar
+module torus(R=10, r=3, N=24, n=8) {
+  for (i = [0 : N-1]) {
+    let (a = i * 360 / N) {
+      rotate([0, 0, a])
+        translate([R, 0, 0])
+          sphere(r=r, $fn=n);
+    }
+  }
+}
+
+torus(10, 2.5, 24, 8);
+translate([0, 30, 0]) color([0.8, 0.5, 0.9]) torus(14, 3, 32, 10);
+`,
+
+  house: `// Rumah sederhana
+module rumah(w=20, h=15, d=10) {
+  // badan
+  cube([w, d, h]);
+  // atap (piramida)
+  translate([w/2, d/2, h])
+    scale([1.2, 1.2, 0.6])
+      sphere(r=w/2, $fn=4);
+  // pintu
+  translate([w/2 - 2, -0.1, 0])
+    cube([4, 0.2, 8]);
+}
+
+// beberapa rumah
+rumah(20, 15, 10);
+translate([30, 0, 0]) color([0.9, 0.7, 0.6]) rumah(15, 12, 8);
+translate([-30, 0, 0]) color([0.8, 0.8, 0.9]) rumah(25, 18, 12);
+`,
+
+  trees: `// Pohon cemara
+module pohon(h=15, r=2) {
+  // batang
+  cylinder(h=h, r=r, $fn=12);
+  // 3 lapis daun kerucut
+  translate([0, 0, h * 0.6])
+    cylinder(h=h*0.5, r1=r*4, r2=r*2, $fn=16);
+  translate([0, 0, h * 1.0])
+    cylinder(h=h*0.5, r1=r*3, r2=r*1.5, $fn=16);
+  translate([0, 0, h * 1.4])
+    cylinder(h=h*0.5, r1=r*2, r2=0, $fn=16);
+}
+
+// hutan kecil
+for (i = [0 : 4]) {
+  for (j = [0 : 3]) {
+    translate([i*10 + j*5, j*8, 0])
+      color([0.2 + i*0.1, 0.5 + j*0.1, 0.2])
+        pohon(10 + i*2, 1.5);
+  }
+}
+`,
+
+  gear: `// Gear sederhana
+module gear(r=10, gigi=12, tinggi=4) {
+  // body
+  cylinder(h=tinggi, r=r, $fn=32);
+  // gigi
+  for (i = [0 : gigi-1]) {
+    let (a = i * 360 / gigi) {
+      rotate([0, 0, a])
+        translate([r, 0, 0])
+          cube([r*0.3, r*0.2, tinggi], center=true);
+    }
+  }
+  // lubang tengah
+  translate([0, 0, -1])
+    cylinder(h=tinggi+2, r=r*0.3, $fn=24);
+}
+
+gear(12, 16, 4);
+translate([30, 0, 0]) color([0.9, 0.6, 0.3]) gear(8, 10, 5);
+translate([0, 30, 0]) color([0.4, 0.7, 0.9]) gear(16, 20, 3);
+`,
+
+  spring: `// Spring / pegas
+module spring(R=6, r=1, tinggi=20, lilitan=8, seg=16) {
+  for (i = [0 : lilitan*seg - 1]) {
+    let (
+      t = i / (lilitan * seg),
+      a = t * 360 * lilitan,
+      z = t * tinggi
+    ) {
+      rotate([0, 0, a])
+        translate([R, 0, z])
+          sphere(r=r, $fn=8);
+    }
+  }
+}
+
+spring(6, 0.8, 20, 8, 12);
+
+translate([20, 0, 0])
+  color([0.9, 0.5, 0.2])
+    spring(10, 1.2, 30, 12, 16);
+`,
+
+  text3d: `// Teks 3D tiruan (pakai kubus kecil membentuk huruf sederhana)
+// karena text() belum didukung di web editor ini
+
+// Huruf "T" sederhana
+module huruf_T() {
+  cube([8, 2, 2]);          // atas
+  translate([3, 0, 0]) cube([2, 2, 10]); // tengah
+}
+
+// Huruf "O"
+module huruf_O() {
+  difference() {
+    cylinder(h=2, r=5, $fn=16);
+    translate([0, 0, -1]) cylinder(h=4, r=3, $fn=16);
+  }
+}
+
+huruf_T();
+translate([15, 0, 0]) huruf_O();
+translate([30, 0, 0]) huruf_T();
+
+// Angka "3"
+translate([0, 20, 0])
+  difference() {
+    cylinder(h=2, r=5, $fn=16);
+    translate([0, 0, -1]) cylinder(h=4, r=3.5, $fn=16);
+    translate([-5, 0, -1]) cube([10, 10, 4]);
+  }
+`,
+
+  demo: `// DEMO — semua perintah dasar
+// F5 untuk render, F6 / Export STL untuk ekspor
+
+// 1. Primitif
+cube(4);
+translate([8, 0, 0]) sphere(r=3, $fn=24);
+translate([16, 0, 0]) cylinder(h=6, r=2, $fn=16);
+
+// 2. Transformasi
+translate([0, 10, 0]) {
+  rotate([0, 0, 45]) cube([4, 4, 4], center=true);
+  translate([8, 0, 0]) scale([2, 1, 0.5]) sphere(r=2);
+  translate([16, 0, 0]) mirror([1, 0, 0]) cube([4, 4, 4]);
+}
+
+// 3. Boolean (difference)
+translate([0, 20, 0]) {
+  difference() {
+    cube([6, 6, 6], center=true);
+    cylinder(h=8, r=2, center=true, $fn=16);
+  }
+}
+
+// 4. For loop
+for (i = [0 : 4]) {
+  translate([i*6, 30, 0])
+    color([i/4, 0.5, 1 - i/4])
+      cube(4);
+}
+
+// 5. Module custom
+module menara(h=10, r=1) {
+  cylinder(h=h, r=r, $fn=12);
+  translate([0, 0, h]) sphere(r=r*2, $fn=16);
+}
+
+translate([0, 45, 0]) menara(8, 1);
+translate([10, 45, 0]) menara(12, 1.5);
+translate([20, 45, 0]) menara(16, 2);
+`,
 };
 
-document.getElementById('resetBtn').onclick = () => {
-  camera.position.set(60, 60, 80);
-  controls.target.set(0, 0, 0);
-  controls.update();
-  log('[view] Kamera direset');
-  toast('Kamera direset');
-};
+/* ========================= CODE EDITOR ========================= */
+const defaultCode = TEMPLATES.demo;
 
-/* ============ AKSI EDIT ============ */
-document.getElementById('selectAllBtn').onclick = () => {
-  if (!editor) return;
-  const model = editor.getModel();
-  editor.setSelection(model.getFullModelRange());
-  editor.focus();
-  toast('Semua dipilih');
-};
+window.editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+  mode: 'text/x-csrc', theme: 'default',
+  lineNumbers: true, tabSize: 2, indentWithTabs: false,
+  lineWrapping: true, viewportMargin: Infinity,
+});
+window.editor.setValue(defaultCode);
+window.editor.setSize('100%', '100%');
 
-document.getElementById('copyBtn').onclick = async () => {
-  if (!editor) return;
-  const sel = editor.getSelection();
-  const text = editor.getModel().getValueInRange(sel);
-  if (!text) { toast('Tidak ada yang dipilih', 'error'); return; }
+function updateCursorPos() {
+  const c = window.editor.getDoc().getCursor();
+  document.getElementById('statusPos').textContent = `Ln ${c.line + 1}, Col ${c.ch + 1}`;
+}
+function updateCharCount() {
+  const len = window.editor.getValue().length;
+  document.getElementById('statusChars').textContent = `${len} chars`;
+}
+window.editor.on('change', () => { updateCursorPos(); updateCharCount(); });
+window.editor.on('cursorActivity', updateCursorPos);
+updateCharCount();
+
+/* ========================= UI BINDINGS ========================= */
+document.getElementById('btnRender').addEventListener('click', () => {
+  render();
+  toast('Rendered', 'success');
+});
+
+document.getElementById('btnExportSTL').addEventListener('click', exportSTL);
+document.getElementById('btnExportSTL2').addEventListener('click', exportSTL);
+document.getElementById('btnExportSTL3').addEventListener('click', exportSTL);
+
+/* ===== TOOLBAR EDITOR ===== */
+document.getElementById('btnSelectAll').addEventListener('click', () => {
+  window.editor.execCommand('selectAll');
+  window.editor.focus();
+  toast('Semua kode dipilih', 'success');
+});
+
+document.getElementById('btnCopy').addEventListener('click', async () => {
+  const text = window.editor.getValue();
   try {
     await navigator.clipboard.writeText(text);
-    toast('Tersalin ✔', 'success');
-  } catch {
+    toast('Kode disalin ke clipboard', 'success');
+  } catch (err) {
     const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy'); ta.remove();
-    toast('Tersalin (fallback)', 'success');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      toast('Kode disalin (fallback)', 'success');
+    } catch (e) {
+      toast('Gagal menyalin', 'error');
+    }
+    document.body.removeChild(ta);
   }
-};
+});
 
-document.getElementById('cutBtn').onclick = async () => {
-  if (!editor) return;
-  const sel = editor.getSelection();
-  const text = editor.getModel().getValueInRange(sel);
-  if (!text) { toast('Tidak ada yang dipilih', 'error'); return; }
-  try { await navigator.clipboard.writeText(text); } catch {}
-  editor.executeEdits('cut', [{ range: sel, text: '' }]);
-  toast('Terpotong ✔', 'success');
-};
-
-document.getElementById('pasteBtn').onclick = async () => {
-  if (!editor) return;
+document.getElementById('btnPaste').addEventListener('click', async () => {
   try {
     const text = await navigator.clipboard.readText();
-    if (!text) { toast('Clipboard kosong', 'error'); return; }
-    const sel = editor.getSelection();
-    editor.executeEdits('paste', [{ range: sel, text, forceMoveMarkers: true }]);
-    editor.focus();
-    toast('Berhasil paste ✔', 'success');
-    setTimeout(render, 200);
-  } catch (e) {
-    toast('Izin clipboard ditolak. Pakai Ctrl+V manual.', 'error');
-    log('[warn] Clipboard API gagal: ' + e.message, 'warn');
+    if (!text) {
+      toast('Clipboard kosong', 'error');
+      return;
+    }
+    const doc = window.editor.getDoc();
+    const cursor = doc.getCursor();
+    doc.replaceRange(text, cursor);
+    window.editor.focus();
+    toast('Kode ditempel', 'success');
+  } catch (err) {
+    const text = prompt('Tempel kode OpenSCAD di sini:');
+    if (text) {
+      const doc = window.editor.getDoc();
+      const cursor = doc.getCursor();
+      doc.replaceRange(text, cursor);
+      window.editor.focus();
+      toast('Kode ditempel', 'success');
+    } else {
+      toast('Paste dibatalkan / tidak didukung browser', 'error');
+    }
   }
-};
+});
 
-document.getElementById('undoBtn').onclick = () => {
-  if (!editor) return;
-  editor.trigger('toolbar', 'undo', null);
-  editor.focus();
-  toast('Undo');
-};
+document.getElementById('btnClear').addEventListener('click', () => {
+  const cur = window.editor.getValue();
+  if (cur.length === 0) {
+    toast('Editor sudah kosong');
+    return;
+  }
+  if (confirm('Hapus semua kode di editor?')) {
+    window.editor.setValue('');
+    window.editor.focus();
+    toast('Editor dibersihkan', 'success');
+  }
+});
 
-document.getElementById('redoBtn').onclick = () => {
-  if (!editor) return;
-  editor.trigger('toolbar', 'redo', null);
-  editor.focus();
-  toast('Redo');
-};
+document.getElementById('templateSelect').addEventListener('change', (e) => {
+  const key = e.target.value;
+  if (!key || !TEMPLATES[key]) return;
+  const cur = window.editor.getValue().trim();
+  if (cur.length > 0) {
+    if (!confirm('Ganti kode dengan template ini? Kode saat ini akan hilang.')) {
+      e.target.value = '';
+      return;
+    }
+  }
+  window.editor.setValue(TEMPLATES[key]);
+  window.editor.focus();
+  e.target.value = '';
+  render();
+  toast('Template dimuat & dirender', 'success');
+});
 
-document.getElementById('clearBtn').onclick = () => {
-  if (!editor) return;
-  if (!confirm('Hapus semua kode?')) return;
-  const model = editor.getModel();
-  editor.executeEdits('clear', [{ range: model.getFullModelRange(), text: '' }]);
-  toast('Editor dibersihkan');
-};
-
-/* ============ MOBILE TAB SWITCHER ============ */
-function switchTab(tab) {
-  const container = document.getElementById('container');
-  container.dataset.tab = tab;
-  document.querySelectorAll('.mobile-tabs button').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === tab);
+/* ===== VIEWPORT ===== */
+document.querySelectorAll('[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-view]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const c = document.getElementById('viewport');
+    const aspect = c.clientWidth / c.clientHeight || 1;
+    if (btn.dataset.view === 'persp') {
+      replaceCamera(new THREE.PerspectiveCamera(45, aspect, 0.1, 10000));
+    } else {
+      const size = 80;
+      replaceCamera(new THREE.OrthographicCamera(
+        -size*aspect/2, size*aspect/2, size/2, -size/2, -1000, 1000
+      ));
+    }
   });
-  setTimeout(() => {
-    window.dispatchEvent(new Event('resize'));
-    resize();
-  }, 50);
+});
+
+function replaceCamera(newCam) {
+  const old = state.camera;
+  newCam.position.copy(old.position);
+  newCam.lookAt(state.controls.target);
+  state.controls.object = newCam;
+  state.camera = newCam;
+  const c = document.getElementById('viewport');
+  if (newCam.isPerspectiveCamera) newCam.aspect = c.clientWidth / c.clientHeight;
+  newCam.updateProjectionMatrix();
+  state.controls.update();
 }
 
-document.querySelectorAll('.mobile-tabs button').forEach(btn => {
-  btn.onclick = () => switchTab(btn.dataset.tab);
+document.getElementById('btnReset').addEventListener('click', () => {
+  fitCamera(state.scene);
+  toast('Kamera di-reset');
 });
 
-/* ============ RESIZER (DESKTOP) ============ */
-const resizer = document.getElementById('resizer');
-let resizing = false;
-resizer.addEventListener('mousedown', e => {
-  resizing = true;
-  e.preventDefault();
-});
-window.addEventListener('mouseup', () => resizing = false);
-window.addEventListener('mousemove', e => {
-  if (!resizing) return;
-  const pane = document.querySelector('.editor-pane');
-  const w = Math.max(200, Math.min(e.clientX, window.innerWidth - 300));
-  pane.style.width = w + 'px';
-  resize();
+document.getElementById('btnWire').addEventListener('click', () => {
+  state.wireframe = !state.wireframe;
+  document.getElementById('btnWire').classList.toggle('active', state.wireframe);
+  state.scene.traverse(n => {
+    if (n.isMesh && n.material) {
+      if (Array.isArray(n.material)) n.material.forEach(m => m.wireframe = state.wireframe);
+      else n.material.wireframe = state.wireframe;
+    }
+  });
 });
 
-/* ============ SHORTCUT GLOBAL ============ */
-window.addEventListener('keydown', e => {
-  if (e.key === 'F5') { e.preventDefault(); render(); }
-  if (e.key === 'F6') { e.preventDefault(); compileFinal(); }
+const fnSlider = document.getElementById('fnSlider');
+const fnVal = document.getElementById('fnVal');
+fnSlider.addEventListener('input', () => {
+  state.globalFn = parseInt(fnSlider.value);
+  fnVal.textContent = state.globalFn;
+});
+fnSlider.addEventListener('change', () => render());
+
+const stlPrecision = document.getElementById('stlPrecision');
+const stlPrecisionVal = document.getElementById('stlPrecisionVal');
+if (stlPrecision) {
+  stlPrecision.addEventListener('input', () => {
+    stlPrecisionVal.textContent = stlPrecision.value;
+  });
+}
+
+/* ========================= MOBILE TABS ========================= */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.getElementById('leftPanel').classList.toggle('open', tab === 'editor');
+    document.getElementById('rightPanel').classList.toggle('open', tab === 'props');
+    if (tab === 'view') {
+      document.getElementById('leftPanel').classList.remove('open');
+      document.getElementById('rightPanel').classList.remove('open');
+      setTimeout(() => {
+        const c = document.getElementById('viewport');
+        if (state.camera) {
+          if (state.camera.isPerspectiveCamera) state.camera.aspect = c.clientWidth / c.clientHeight;
+          state.camera.updateProjectionMatrix();
+        }
+        state.renderer.setSize(c.clientWidth, c.clientHeight);
+      }, 300);
+    }
+    if (tab === 'editor' || tab === 'props') {
+      setTimeout(() => { window.editor && window.editor.refresh(); }, 300);
+    }
+  });
 });
 
-/* ============ INIT ============ */
-window.addEventListener('load', () => {
-  updateToolbarHeight();
-  setTimeout(updateToolbarHeight, 300);
-  setTimeout(render, 1200);
-  setExportReady(false);
+document.getElementById('viewport').addEventListener('click', () => {
+  if (window.innerWidth <= 900) {
+    document.getElementById('leftPanel').classList.remove('open');
+    document.getElementById('rightPanel').classList.remove('open');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="view"]').classList.add('active');
+  }
 });
 
-// Cegah double-tap zoom di iOS
-let lastTouch = 0;
-document.addEventListener('touchend', e => {
-  const now = Date.now();
-  if (now - lastTouch < 300) e.preventDefault();
-  lastTouch = now;
-}, { passive: false });
+/* ========================= KEYBOARD ========================= */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key === 'Enter')) {
+    e.preventDefault();
+    render();
+    toast('Rendered', 'success');
+  }
+  if (e.key === 'F6') {
+    e.preventDefault();
+    exportSTL();
+  }
+});
+
+/* ========================= BOOT ========================= */
+initThree();
+setTimeout(() => render(), 200);
 </script>
 </body>
 </html>
