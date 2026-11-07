@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#111122">
-    <title>3D Editor Mobile - Rotasi Mudah, D-Pad, Ukuran, Lubang, Gabung, Import STL</title>
+    <title>3D Editor Pro - RTDB Cloud, Export STL, CSG</title>
     <style>
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
         html, body {
@@ -19,7 +19,6 @@
         #canvas-container { position: fixed; inset: 0; }
         canvas { display: block; touch-action: none; }
 
-        /* Top bar */
         #topbar {
             position: fixed; top: 0; left: 0; right: 0;
             padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
@@ -28,7 +27,7 @@
             z-index: 20; pointer-events: none;
         }
         #title { color: #fff; font-size: 14px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
-        .top-actions { display: flex; gap: 8px; pointer-events: auto; }
+        .top-actions { display: flex; gap: 8px; pointer-events: auto; align-items: center; }
         .top-btn {
             width: 38px; height: 38px; border-radius: 50%;
             color: #fff; border: none;
@@ -41,7 +40,20 @@
         #undoBtn { background: rgba(255,152,0,0.9); font-size: 16px; }
         #undoBtn:disabled { opacity: 0.35; }
         #importBtn { background: rgba(155,89,182,0.95); font-size: 16px; }
+        #exportBtn { background: rgba(31,139,76,0.95); font-size: 16px; }
+        #saveCloudBtn { background: rgba(52,144,220,0.95); font-size: 16px; }
+        #myDesignsBtn { background: rgba(220,120,52,0.95); font-size: 16px; }
         #helpBtn { background: rgba(74,144,226,0.9); }
+        #authBtn {
+            background: rgba(60,60,80,0.9);
+            width: 38px; height: 38px; border-radius: 50%;
+            color: #fff; border: 1px solid rgba(255,255,255,0.15);
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            font-size: 16px; overflow: hidden; padding: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        }
+        #authBtn img { width: 100%; height: 100%; object-fit: cover; }
+        #authBtn.logged-in { border: 2px solid #4ade80; }
 
         #status {
             position: fixed;
@@ -55,149 +67,98 @@
             max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
         }
 
-        /* Floating panel (D-Pad untuk geser / Rotasi) */
+        #loadingOverlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: none; align-items: center; justify-content: center;
+            z-index: 150; backdrop-filter: blur(4px);
+            flex-direction: column; gap: 16px;
+        }
+        #loadingOverlay.show { display: flex; }
+        .spinner {
+            width: 48px; height: 48px;
+            border: 4px solid rgba(74,144,226,0.3);
+            border-top-color: #4a90e2;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loadingText { color: #fff; font-size: 14px; font-weight: 600; text-align: center; padding: 0 20px; }
+
         #dpad, #rotpad {
-            position: fixed;
-            right: 12px;
+            position: fixed; right: 12px;
             bottom: calc(env(safe-area-inset-bottom) + 240px);
-            z-index: 25;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
+            z-index: 25; display: none; flex-direction: column;
+            align-items: center; gap: 4px;
             background: rgba(15, 20, 40, 0.78);
             border: 1px solid rgba(74,144,226,0.35);
-            border-radius: 18px;
-            padding: 8px;
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            border-radius: 18px; padding: 8px;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-            user-select: none;
-            -webkit-user-select: none;
+            user-select: none; -webkit-user-select: none;
         }
         #dpad.show { display: flex; }
-
         #rotpad { border-color: rgba(255,152,0,0.4); }
         #rotpad.show { display: flex; }
-
-        #dpad .dpad-row,
-        #rotpad .dpad-row {
-            display: flex;
-            gap: 4px;
-            align-items: center;
+        #dpad .dpad-row, #rotpad .dpad-row { display: flex; gap: 4px; align-items: center; }
+        #dpad .dpad-cell, #rotpad .dpad-cell {
+            width: 44px; height: 44px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1); background: #2a3a5a;
+            color: #fff; font-size: 20px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: transform 0.08s, background 0.12s;
+            -webkit-user-select: none; user-select: none;
         }
-        #dpad .dpad-cell,
-        #rotpad .dpad-cell {
-            width: 44px; height: 44px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: #2a3a5a;
-            color: #fff;
-            font-size: 20px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: transform 0.08s, background 0.12s;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        #dpad .dpad-cell:active,
-        #dpad .dpad-cell.pressed {
-            transform: scale(0.88);
-            background: #4a90e2;
+        #dpad .dpad-cell:active, #dpad .dpad-cell.pressed {
+            transform: scale(0.88); background: #4a90e2;
             box-shadow: 0 0 10px rgba(74,144,226,0.7);
         }
-        #rotpad .dpad-cell:active,
-        #rotpad .dpad-cell.pressed {
-            transform: scale(0.88);
-            background: #ff9800;
+        #rotpad .dpad-cell:active, #rotpad .dpad-cell.pressed {
+            transform: scale(0.88); background: #ff9800;
             box-shadow: 0 0 10px rgba(255,152,0,0.8);
         }
-        #dpad .dpad-cell.z-btn {
-            background: #6b3fa0;
-        }
+        #dpad .dpad-cell.z-btn { background: #6b3fa0; }
         #dpad .dpad-cell.z-btn:active { background: #9a5ff5; }
-        #dpad .dpad-cell.center,
-        #rotpad .dpad-cell.center {
-            background: transparent;
-            border: none;
-            cursor: default;
-            font-size: 10px;
-            color: #8fb3e0;
+        #dpad .dpad-cell.center, #rotpad .dpad-cell.center {
+            background: transparent; border: none; cursor: default;
+            font-size: 10px; color: #8fb3e0;
         }
-        #dpad .dpad-cell.center:active,
-        #rotpad .dpad-cell.center:active {
-            transform: none;
-            background: transparent;
-            box-shadow: none;
-        }
-
-        /* Rotpad: warna khusus per axis */
-        #rotpad .rot-x { background: #7a2f2f; }  /* merah untuk X */
-        #rotpad .rot-y { background: #2f7a3e; }  /* hijau untuk Y */
-        #rotpad .rot-z { background: #2f4a7a; }  /* biru untuk Z */
+        #rotpad .rot-x { background: #7a2f2f; }
+        #rotpad .rot-y { background: #2f7a3e; }
+        #rotpad .rot-z { background: #2f4a7a; }
         #rotpad .rot-x:active, #rotpad .rot-x.pressed { background: #e05555; }
         #rotpad .rot-y:active, #rotpad .rot-y.pressed { background: #4ade80; }
         #rotpad .rot-z:active, #rotpad .rot-z.pressed { background: #5b9ce6; }
-
         #rotpad .reset-rot-btn {
-            width: 100%;
-            padding: 8px;
-            margin-top: 2px;
-            border-radius: 8px;
+            width: 100%; padding: 8px; margin-top: 2px;
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(30,40,60,0.9); color: #ffcc80;
+            font-size: 11px; font-weight: 600; cursor: pointer;
+        }
+        #dpad .step-row, #rotpad .step-row {
+            display: flex; gap: 4px; margin-top: 2px;
+        }
+        #dpad .step-btn, #rotpad .step-btn {
+            padding: 4px 8px; border-radius: 8px;
             border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(30,40,60,0.9);
-            color: #ffcc80;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
+            background: rgba(30,40,60,0.9); color: #cfe0ff;
+            font-size: 10px; font-weight: 600; cursor: pointer;
         }
-        #rotpad .reset-rot-btn:active { background: #e65100; color: #fff; }
+        #dpad .step-btn.active { background: #4a90e2; color: #fff; }
+        #rotpad .step-btn.active { background: #ff9800; color: #fff; }
 
-        #dpad .step-row,
-        #rotpad .step-row {
-            display: flex;
-            gap: 4px;
-            margin-top: 2px;
-        }
-        #dpad .step-btn,
-        #rotpad .step-btn {
-            padding: 4px 8px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(30,40,60,0.9);
-            color: #cfe0ff;
-            font-size: 10px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        #dpad .step-btn.active {
-            background: #4a90e2;
-            color: #fff;
-        }
-        #rotpad .step-btn.active {
-            background: #ff9800;
-            color: #fff;
-        }
-
-        /* Bottom action bar */
         #bottomBar {
             position: fixed; left: 0; right: 0; bottom: 0;
             padding: 10px 10px calc(env(safe-area-inset-bottom) + 10px);
-            z-index: 20;
-            display: flex; flex-direction: column; gap: 8px;
+            z-index: 20; display: flex; flex-direction: column; gap: 8px;
             background: linear-gradient(to top, rgba(10,10,20,0.95) 30%, rgba(10,10,20,0));
         }
         .row { display: flex; gap: 8px; justify-content: center; }
         .btn {
-            flex: 1; min-height: 52px;
-            border: none; border-radius: 14px; color: #fff;
-            font-weight: 600; font-size: 12px; cursor: pointer;
+            flex: 1; min-height: 52px; border: none; border-radius: 14px;
+            color: #fff; font-weight: 600; font-size: 12px; cursor: pointer;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 2px; background: #2a3a5a;
-            border: 1px solid rgba(255,255,255,0.08);
+            gap: 2px; background: #2a3a5a; border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 2px 8px rgba(0,0,0,0.35);
             transition: transform 0.1s, background 0.15s;
             user-select: none; -webkit-user-select: none;
@@ -206,35 +167,41 @@
         .btn .label { font-size: 10px; opacity: 0.9; }
         .btn:active { transform: scale(0.94); }
         .btn.primary { background: #1f8b4c; }
-        .btn.primary:active { background: #27a85d; }
         .btn.mode { background: #2d4a7a; }
         .btn.mode.active { background: #4a90e2; box-shadow: 0 0 12px rgba(74,144,226,0.7); }
         .btn.danger { background: #a83232; }
-        .btn.danger:active { background: #c94141; }
         .btn.accent { background: #b8860b; }
-        .btn.accent:active { background: #d4a017; }
         .btn.hole { background: #6b3fa0; }
-        .btn.hole:active { background: #7f4fc0; }
         .btn.hole.active { background: #9a5ff5; box-shadow: 0 0 12px rgba(154,95,245,0.7); }
         .btn.union { background: #0e7c7b; }
-        .btn.union:active { background: #129a99; }
-        .btn.dpad-toggle { background: #38507a; }
-        .btn.dpad-toggle.active { background: #4a90e2; box-shadow: 0 0 12px rgba(74,144,226,0.7); }
+        .btn.duplicate { background: #5a3a7a; }
 
-        /* Help modal & import modal */
-        #helpModal, #importModal {
+        #colorPickerRow {
+            display: none; gap: 6px; justify-content: center;
+            padding: 6px 0; flex-wrap: wrap;
+        }
+        #colorPickerRow.show { display: flex; }
+        .color-swatch {
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.2);
+            cursor: pointer; transition: transform 0.12s;
+        }
+        .color-swatch.active { border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.8); }
+
+        #helpModal, #importModal, #exportModal, #authModal, #designsModal, #saveModal {
             position: fixed; inset: 0;
             background: rgba(0,0,0,0.75);
             display: none; align-items: center; justify-content: center;
             z-index: 100; padding: 20px; backdrop-filter: blur(4px);
         }
-        #helpModal.show, #importModal.show { display: flex; }
+        #helpModal.show, #importModal.show, #exportModal.show,
+        #authModal.show, #designsModal.show, #saveModal.show { display: flex; }
         .modal-box {
             background: #1b1b2b; border: 1px solid #333;
             border-radius: 16px; padding: 20px;
             max-width: 420px; width: 100%; color: #ddd;
             box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-            max-height: 80vh; overflow-y: auto;
+            max-height: 85vh; overflow-y: auto;
         }
         .modal-box h2 { margin: 0 0 12px; font-size: 16px; color: #6fa8ff; }
         .modal-box ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.9; }
@@ -244,53 +211,102 @@
             border: none; border-radius: 10px; background: #4a90e2;
             color: #fff; font-weight: 600; font-size: 14px; cursor: pointer;
         }
-        .modal-btn:active { background: #5fa3ff; }
         .modal-btn.cancel { background: #444; margin-top: 8px; }
-        .modal-btn.cancel:active { background: #555; }
+        .modal-btn.success { background: #1f8b4c; }
+        .modal-btn.google {
+            background: #fff; color: #333;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            font-size: 15px;
+        }
+        .modal-btn.google::before { content: '🔵'; font-size: 18px; }
+        .modal-btn.danger { background: #a83232; }
 
-        /* Import info */
+        #authUserInfo {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px; background: #0d1420;
+            border-radius: 10px; margin-bottom: 12px;
+        }
+        #authUserInfo img {
+            width: 48px; height: 48px; border-radius: 50%;
+            border: 2px solid #4a90e2;
+        }
+        #authUserInfo .uinfo { flex: 1; }
+        #authUserInfo .uname { font-size: 14px; font-weight: 600; color: #fff; }
+        #authUserInfo .uemail { font-size: 11px; color: #8fb3e0; word-break: break-all; }
+
+        .design-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px; margin-bottom: 8px;
+            background: #0d1420; border-radius: 10px;
+            border: 1px solid #2d3a5a;
+        }
+        .design-item .dinfo { flex: 1; min-width: 0; }
+        .design-item .dname {
+            font-size: 13px; font-weight: 600; color: #fff;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .design-item .dmeta { font-size: 10px; color: #8fb3e0; margin-top: 2px; }
+        .design-item .dactions { display: flex; gap: 4px; }
+        .design-item .dbtn {
+            width: 36px; height: 36px; border-radius: 8px;
+            border: none; cursor: pointer; font-size: 16px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .design-item .dbtn.load { background: #1f8b4c; color: #fff; }
+        .design-item .dbtn.del { background: #5a2a2a; color: #fff; }
+
         .import-zone {
-            border: 2px dashed #3a5a8a;
-            border-radius: 12px;
-            padding: 24px 16px;
-            text-align: center;
-            color: #8fb3e0;
-            font-size: 13px;
-            margin-bottom: 12px;
+            border: 2px dashed #3a5a8a; border-radius: 12px;
+            padding: 24px 16px; text-align: center;
+            color: #8fb3e0; font-size: 13px; margin-bottom: 12px;
+            cursor: pointer;
         }
         .import-zone .big-icon { font-size: 36px; margin-bottom: 8px; }
         #stlFileInput { display: none; }
         .import-info {
-            font-size: 11px;
-            color: #8fb3e0;
-            line-height: 1.7;
-            background: #0d1420;
-            padding: 10px;
-            border-radius: 8px;
-            border-left: 3px solid #4a90e2;
-            margin-bottom: 8px;
+            font-size: 11px; color: #8fb3e0; line-height: 1.7;
+            background: #0d1420; padding: 10px; border-radius: 8px;
+            border-left: 3px solid #4a90e2; margin-bottom: 8px;
         }
+        .export-option {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px; margin-bottom: 8px;
+            background: #0d1420; border-radius: 10px;
+            border: 1px solid #2d3a5a; cursor: pointer;
+        }
+        .export-option.selected { border-color: #4a90e2; background: #152030; }
+        .export-option .radio {
+            width: 20px; height: 20px; border-radius: 50%;
+            border: 2px solid #4a90e2; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .export-option.selected .radio::after {
+            content: ''; width: 10px; height: 10px;
+            border-radius: 50%; background: #4a90e2;
+        }
+        .export-option .opt-content { flex: 1; }
+        .export-option .opt-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+        .export-option .opt-desc { font-size: 11px; color: #8fb3e0; }
+        .export-stats {
+            background: #0d1420; padding: 12px; border-radius: 10px;
+            border-left: 3px solid #1f8b4c; margin-bottom: 12px;
+            font-size: 12px; line-height: 1.8;
+        }
+        .export-stats b { color: #6fe0a0; }
 
-        /* Size panel (bottom sheet) */
         #sizePanel {
-            position: fixed; inset: 0;
-            background: rgba(0,0,0,0.55);
+            position: fixed; inset: 0; background: rgba(0,0,0,0.55);
             display: none; align-items: flex-end;
             z-index: 90; backdrop-filter: blur(2px);
         }
         #sizePanel.show { display: flex; }
         #sizeSheet {
-            width: 100%;
-            background: #1b1b2b;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
+            width: 100%; background: #1b1b2b;
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
             padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px);
-            border-top: 1px solid #333;
-            color: #ddd;
-            max-height: 85vh;
-            overflow-y: auto;
-            transform: translateY(100%);
-            transition: transform 0.25s ease;
+            border-top: 1px solid #333; color: #ddd;
+            max-height: 85vh; overflow-y: auto;
+            transform: translateY(100%); transition: transform 0.25s ease;
         }
         #sizePanel.show #sizeSheet { transform: translateY(0); }
         #sizeSheet h3 {
@@ -311,21 +327,16 @@
             width: 100%; padding: 10px;
             background: #0d0d1a; border: 1px solid #2d3a5a;
             border-radius: 8px; color: #fff; font-size: 15px;
-            font-weight: 600; font-family: inherit;
-            outline: none;
+            font-weight: 600; font-family: inherit; outline: none;
         }
         .field input:focus { border-color: #4a90e2; }
-
         #sizeActionRow { display: flex; gap: 8px; margin-top: 12px; }
         #sizeActionRow button {
             flex: 1; padding: 12px; border-radius: 10px; border: none;
             font-weight: 700; font-size: 13px; cursor: pointer; color: #fff;
         }
         #applySize { background: #1f8b4c; }
-        #applySize:active { background: #27a85d; }
         #cancelSize { background: #444; }
-        #cancelSize:active { background: #555; }
-
         #holeToggleRow {
             display: flex; align-items: center; gap: 8px;
             margin: 10px 0; padding: 10px;
@@ -334,11 +345,24 @@
         }
         #holeToggleRow input { width: 20px; height: 20px; }
         #holeToggleRow label { font-size: 13px; color: #d0bfff; flex: 1; }
-
         .info-row { font-size: 11px; color: #888; margin-bottom: 6px; }
         .info-row b { color: #cfe0ff; }
 
-        /* Toast */
+        #saveModalInput {
+            width: 100%; padding: 14px;
+            background: #0d0d1a; border: 1px solid #2d3a5a;
+            border-radius: 10px; color: #fff; font-size: 15px;
+            font-family: inherit; outline: none; margin-bottom: 8px;
+        }
+        #saveModalInput:focus { border-color: #4a90e2; }
+        .cloud-status {
+            font-size: 11px; color: #8fb3e0; text-align: center;
+            padding: 8px; margin-top: 4px;
+        }
+        .cloud-status.online { color: #4ade80; }
+        .cloud-status.warn { color: #fbbf24; }
+        .cloud-status.error { color: #f87171; }
+
         #toast {
             position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%) scale(0.9);
@@ -346,10 +370,16 @@
             padding: 12px 20px; border-radius: 10px;
             font-size: 13px; opacity: 0; pointer-events: none;
             transition: opacity 0.2s, transform 0.2s;
-            z-index: 200; max-width: 80vw; text-align: center;
+            z-index: 200; max-width: 85vw; text-align: center;
             line-height: 1.5;
         }
         #toast.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+        .empty-state {
+            text-align: center; color: #8fb3e0;
+            font-size: 13px; padding: 32px 16px;
+        }
+        .empty-state .big-icon { font-size: 40px; margin-bottom: 12px; }
 
         @media (orientation: landscape) and (max-height: 500px) {
             #bottomBar { flex-direction: row; align-items: flex-end; }
@@ -360,8 +390,7 @@
             #status { font-size: 10px; top: calc(env(safe-area-inset-top) + 50px); }
             #dpad, #rotpad {
                 bottom: calc(env(safe-area-inset-bottom) + 160px);
-                transform: scale(0.85);
-                transform-origin: bottom right;
+                transform: scale(0.85); transform-origin: bottom right;
             }
         }
         @media (max-width: 360px) {
@@ -369,6 +398,7 @@
             .btn .icon { font-size: 16px; }
             #title { font-size: 12px; }
             #dpad .dpad-cell, #rotpad .dpad-cell { width: 38px; height: 38px; font-size: 17px; }
+            .top-btn, #authBtn { width: 32px; height: 32px; font-size: 14px; }
         }
     </style>
 </head>
@@ -377,17 +407,25 @@
 <div id="canvas-container"></div>
 
 <div id="topbar">
-    <div id="title">✏️ 3D Editor</div>
+    <div id="title">✏️ 3D Editor Pro</div>
     <div class="top-actions">
         <button class="top-btn" id="importBtn" aria-label="Import STL" title="Import STL">📥</button>
+        <button class="top-btn" id="exportBtn" aria-label="Export STL" title="Export STL">💾</button>
+        <button class="top-btn" id="saveCloudBtn" aria-label="Simpan ke Cloud" title="Simpan ke Cloud">☁️</button>
+        <button class="top-btn" id="myDesignsBtn" aria-label="Desain Saya" title="Desain Saya">📚</button>
         <button class="top-btn" id="undoBtn" aria-label="Undo" disabled>↶</button>
         <button class="top-btn" id="helpBtn" aria-label="Bantuan">?</button>
+        <button id="authBtn" title="Login">👤</button>
     </div>
 </div>
 
 <div id="status">Mode: Pilih | Objek: -</div>
 
-<!-- Floating D-Pad (geser) -->
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadingText">Memproses...</div>
+</div>
+
 <div id="dpad">
     <div class="dpad-row">
         <div class="dpad-cell" data-action="y+">▲</div>
@@ -412,7 +450,6 @@
     </div>
 </div>
 
-<!-- Floating Rotpad (rotasi) -->
 <div id="rotpad">
     <div class="dpad-row">
         <div class="dpad-cell rot-x" data-rot="x-">⟲X</div>
@@ -445,63 +482,37 @@
         <button class="btn primary" id="addCylinder"><span class="icon">⬤</span><span class="label">Silinder</span></button>
     </div>
     <div class="row">
-        <button class="btn mode" id="toggleTranslate"><span class="icon">✥</span><span class="label">Geser</span></button>
+        <button class="btn mode active" id="toggleTranslate"><span class="icon">✥</span><span class="label">Geser</span></button>
         <button class="btn mode" id="toggleRotate"><span class="icon">↻</span><span class="label">Rotasi</span></button>
         <button class="btn accent" id="editSizeBtn"><span class="icon">📐</span><span class="label">Ukuran</span></button>
     </div>
     <div class="row">
+        <button class="btn duplicate" id="duplicateBtn"><span class="icon">⧉</span><span class="label">Duplikat</span></button>
         <button class="btn hole" id="toggleHoleBtn"><span class="icon">🕳️</span><span class="label">Lubang</span></button>
         <button class="btn union" id="unionBtn"><span class="icon">⊕</span><span class="label">Gabung</span></button>
         <button class="btn danger" id="deleteObj"><span class="icon">🗑️</span><span class="label">Hapus</span></button>
     </div>
+    <div id="colorPickerRow"></div>
 </div>
 
-<!-- Panel edit ukuran -->
 <div id="sizePanel">
     <div id="sizeSheet">
         <h3>📐 Edit Ukuran <button id="closeSizePanel">✕</button></h3>
         <div class="info-row" id="sizeInfo">Objek: -</div>
         <div class="field-row">
-            <div class="field">
-                <label>Panjang X (mm)</label>
-                <input type="number" id="sizeX" step="0.1" min="0.1" inputmode="decimal">
-            </div>
-            <div class="field">
-                <label>Lebar Z (mm)</label>
-                <input type="number" id="sizeZ" step="0.1" min="0.1" inputmode="decimal">
-            </div>
-            <div class="field">
-                <label>Tinggi Y (mm)</label>
-                <input type="number" id="sizeY" step="0.1" min="0.1" inputmode="decimal">
-            </div>
+            <div class="field"><label>Panjang X (mm)</label><input type="number" id="sizeX" step="0.1" min="0.1" inputmode="decimal"></div>
+            <div class="field"><label>Lebar Z (mm)</label><input type="number" id="sizeZ" step="0.1" min="0.1" inputmode="decimal"></div>
+            <div class="field"><label>Tinggi Y (mm)</label><input type="number" id="sizeY" step="0.1" min="0.1" inputmode="decimal"></div>
         </div>
         <div class="field-row">
-            <div class="field">
-                <label>Rotasi X (°)</label>
-                <input type="number" id="rotX" step="1" inputmode="decimal" value="0">
-            </div>
-            <div class="field">
-                <label>Rotasi Y (°)</label>
-                <input type="number" id="rotY" step="1" inputmode="decimal" value="0">
-            </div>
-            <div class="field">
-                <label>Rotasi Z (°)</label>
-                <input type="number" id="rotZ" step="1" inputmode="decimal" value="0">
-            </div>
+            <div class="field"><label>Rotasi X (°)</label><input type="number" id="rotX" step="1" inputmode="decimal" value="0"></div>
+            <div class="field"><label>Rotasi Y (°)</label><input type="number" id="rotY" step="1" inputmode="decimal" value="0"></div>
+            <div class="field"><label>Rotasi Z (°)</label><input type="number" id="rotZ" step="1" inputmode="decimal" value="0"></div>
         </div>
         <div class="field-row">
-            <div class="field">
-                <label>Posisi X (mm)</label>
-                <input type="number" id="posX" step="0.1" inputmode="decimal">
-            </div>
-            <div class="field">
-                <label>Posisi Y (mm)</label>
-                <input type="number" id="posY" step="0.1" inputmode="decimal">
-            </div>
-            <div class="field">
-                <label>Posisi Z (mm)</label>
-                <input type="number" id="posZ" step="0.1" inputmode="decimal">
-            </div>
+            <div class="field"><label>Posisi X (mm)</label><input type="number" id="posX" step="0.1" inputmode="decimal"></div>
+            <div class="field"><label>Posisi Y (mm)</label><input type="number" id="posY" step="0.1" inputmode="decimal"></div>
+            <div class="field"><label>Posisi Z (mm)</label><input type="number" id="posZ" step="0.1" inputmode="decimal"></div>
         </div>
         <div id="holeToggleRow">
             <input type="checkbox" id="isHole">
@@ -515,7 +526,6 @@
     </div>
 </div>
 
-<!-- Modal Import STL -->
 <div id="importModal">
     <div class="modal-box">
         <h2>📥 Import File STL</h2>
@@ -527,13 +537,106 @@
         <input type="file" id="stlFileInput" accept=".stl,model/stl,application/sla">
         <div class="import-info">
             <b>ℹ️ Info:</b><br>
-            • STL otomatis di-scale ke mm (asumsi sudah mm)<br>
+            • STL otomatis di-scale ke mm<br>
             • Diletakkan di tengah lantai<br>
             • Bisa diputar/di-scale/gabung dengan objek lain<br>
             • File besar (>5MB) mungkin lambat di HP lama
         </div>
         <button class="modal-btn" id="pickStlBtn">📂 Pilih File STL</button>
         <button class="modal-btn cancel" id="closeImport">Batal</button>
+    </div>
+</div>
+
+<div id="exportModal">
+    <div class="modal-box">
+        <h2>💾 Export STL</h2>
+        <div class="export-stats" id="exportStats">Menghitung...</div>
+        <div class="export-option selected" data-format="binary">
+            <div class="radio"></div>
+            <div class="opt-content">
+                <div class="opt-title">Binary STL (Direkomendasikan)</div>
+                <div class="opt-desc">File lebih kecil, cocok untuk 3D printing</div>
+            </div>
+        </div>
+        <div class="export-option" data-format="ascii">
+            <div class="radio"></div>
+            <div class="opt-content">
+                <div class="opt-title">ASCII STL</div>
+                <div class="opt-desc">File lebih besar, mudah dibaca</div>
+            </div>
+        </div>
+        <div class="export-option selected" data-scope="all">
+            <div class="radio"></div>
+            <div class="opt-content">
+                <div class="opt-title">Semua Objek</div>
+                <div class="opt-desc">Export seluruh scene (solid saja)</div>
+            </div>
+        </div>
+        <div class="export-option" data-scope="selected">
+            <div class="radio"></div>
+            <div class="opt-content">
+                <div class="opt-title">Hanya Objek Terpilih</div>
+                <div class="opt-desc" id="selectedScopeDesc">Pilih objek terlebih dahulu</div>
+            </div>
+        </div>
+        <div class="import-info" style="margin-top:12px">
+            <b>ℹ️ Catatan:</b><br>
+            • Objek lubang tidak di-export<br>
+            • Satuan: millimeter (mm)<br>
+            • Rotasi & scale sudah di-bake
+        </div>
+        <button class="modal-btn success" id="doExportBtn">⬇️ Download STL</button>
+        <button class="modal-btn cancel" id="closeExport">Batal</button>
+    </div>
+</div>
+
+<div id="authModal">
+    <div class="modal-box">
+        <h2 id="authTitle">🔐 Login</h2>
+        <div id="authLoggedOut">
+            <div class="import-info">
+                Login dengan Google untuk menyimpan desain ke cloud dan mengaksesnya dari perangkat lain.
+            </div>
+            <button class="modal-btn google" id="googleLoginBtn">Login dengan Google</button>
+        </div>
+        <div id="authLoggedIn" style="display:none">
+            <div id="authUserInfo">
+                <img id="authUserPhoto" src="" alt="">
+                <div class="uinfo">
+                    <div class="uname" id="authUserName">-</div>
+                    <div class="uemail" id="authUserEmail">-</div>
+                </div>
+            </div>
+            <div class="cloud-status online">☁️ Terhubung ke Cloud</div>
+            <button class="modal-btn" id="authSaveBtn">☁️ Simpan Desain ke Cloud</button>
+            <button class="modal-btn" id="authMyDesignsBtn" style="background:#b8860b">📚 Desain Saya</button>
+            <button class="modal-btn danger" id="authLogoutBtn">Logout</button>
+        </div>
+        <button class="modal-btn cancel" id="closeAuth">Tutup</button>
+    </div>
+</div>
+
+<div id="saveModal">
+    <div class="modal-box">
+        <h2>☁️ Simpan Desain ke Cloud</h2>
+        <div class="info-row" id="saveInfo">-</div>
+        <input type="text" id="saveModalInput" placeholder="Nama desain..." maxlength="60">
+        <div class="cloud-status" id="saveStatus"></div>
+        <button class="modal-btn success" id="confirmSaveBtn">Simpan</button>
+        <button class="modal-btn cancel" id="cancelSaveBtn">Batal</button>
+    </div>
+</div>
+
+<div id="designsModal">
+    <div class="modal-box">
+        <h2>📚 Desain Saya</h2>
+        <div id="designsList">
+            <div class="empty-state">
+                <div class="big-icon">📭</div>
+                <div>Memuat...</div>
+            </div>
+        </div>
+        <button class="modal-btn cancel" id="closeDesigns">Tutup</button>
     </div>
 </div>
 
@@ -544,14 +647,17 @@
             <li><b>1 jari drag</b> — Putar kamera</li>
             <li><b>2 jari</b> — Zoom & geser kamera</li>
             <li><b>Tap objek</b> — Pilih objek</li>
-            <li><b>Tap kosong</b> — Batal pilih</li>
-            <li><b>🎮 D-Pad</b> — Geser objek (X/Y/Z) dengan step 0.5/1/5/10 mm</li>
-            <li><b>↻ Rotasi</b> — Mode rotasi + panel rotasi muncul (X/Y/Z, step 5/15/45/90°)</li>
-            <li><b>Ukuran</b> — Ubah ukuran, posisi, rotasi, toggle lubang</li>
-            <li><b>Lubang</b> — Toggle cepat lubang</li>
-            <li><b>Gabung</b> — Tap A → tap B → Gabung</li>
-            <li><b>📥 Import STL</b> — Tombol kanan atas</li>
-            <li><b>↶ Undo</b> — Batalkan (maks 5)</li>
+            <li><b>🎮 D-Pad</b> — Geser objek (step 0.5/1/5/10 mm)</li>
+            <li><b>↻ Rotasi</b> — Mode rotasi + panel rotasi</li>
+            <li><b>📐 Ukuran</b> — Ubah ukuran, posisi, rotasi</li>
+            <li><b>⧉ Duplikat</b> — Gandakan objek</li>
+            <li><b>🕳️ Lubang</b> — Toggle lubang</li>
+            <li><b>⊕ Gabung</b> — Tap A → tap B → Gabung</li>
+            <li><b>🎨 Warna</b> — Tap swatch di bawah</li>
+            <li><b>📥 Import / 💾 Export STL</b> — Tombol kanan atas</li>
+            <li><b>☁️ Simpan Cloud</b> — Login Google lalu tap ☁️</li>
+            <li><b>📚 Desain Saya</b> — Lihat desain tersimpan</li>
+            <li><b>↶ Undo</b> — Batalkan (maks 10)</li>
         </ul>
         <button class="modal-btn" id="closeHelp">Mengerti</button>
     </div>
@@ -574,6 +680,32 @@
     import { TransformControls } from 'three/addons/controls/TransformControls.js';
     import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
     import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+    import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+
+    // ===== Firebase Imports =====
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import {
+        getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+        getRedirectResult, onAuthStateChanged, signOut
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    
+    // PENTING: Import Firebase Realtime Database
+    import { getDatabase, ref, set, get, child, remove, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC5fnI7GMRLZljIIpYG2QGi7rrpp3_BXps",
+        authDomain: "ddesign-b5e35.firebaseapp.com",
+        databaseURL: "https://ddesign-b5e35-default-rtdb.firebaseio.com",
+        projectId: "ddesign-b5e35",
+        storageBucket: "ddesign-b5e35.firebasestorage.app",
+        messagingSenderId: "398652876864",
+        appId: "1:398652876864:web:9b33f8e029083e8c9957a5",
+        measurementId: "G-N9M5K8EYFE"
+    };
+
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+    const rtdb = getDatabase(fbApp); // Inisialisasi RTDB
 
     // ===== Scene Setup =====
     const scene = new THREE.Scene();
@@ -592,7 +724,6 @@
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-    // ===== Camera Controls =====
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
     orbitControls.dampingFactor = 0.08;
@@ -603,7 +734,6 @@
     orbitControls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     orbitControls.target.set(0, 10, 0);
 
-    // ===== Transform Controls =====
     const transformControls = new TransformControls(camera, renderer.domElement);
     transformControls.addEventListener('dragging-changed', (e) => {
         orbitControls.enabled = !e.value;
@@ -611,9 +741,7 @@
     transformControls.setSize(0.9);
     scene.add(transformControls);
 
-    // ===== Lights =====
     scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(50, 100, 70);
     dirLight.castShadow = true;
@@ -627,16 +755,13 @@
     dirLight.shadow.camera.near = 1;
     dirLight.shadow.camera.far = 400;
     scene.add(dirLight);
-
     const fillLight = new THREE.PointLight(0x4466ff, 0.5);
     fillLight.position.set(-50, 30, 50);
     scene.add(fillLight);
 
-    // ===== Grid & Floor (mm) =====
     const gridHelper = new THREE.GridHelper(200, 20, 0x88aaff, 0x2a3a5a);
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
-
     const floorGeo = new THREE.PlaneGeometry(200, 200);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
     const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -650,21 +775,26 @@
     const objects = [];
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
-    const colors = [0xff5733, 0x33cc66, 0x4488ff, 0xdd44dd, 0xffcc33, 0x33dddd];
+    const colors = [0xff5733, 0x33cc66, 0x4488ff, 0xdd44dd, 0xffcc33, 0x33dddd, 0xff6b9d, 0x9b59b6, 0x1abc9c, 0xe67e22];
     let colorIndex = 0;
     let transformMode = 'translate';
     let holeCounter = 0;
-    let dpadStep = 1;       // mm
-    let rotStep = 15;       // derajat
+    let dpadStep = 1;
+    let rotStep = 15;
+
+    let currentUser = null;
+    let currentDesignId = null;
+    let currentDesignName = null;
 
     // ===== Undo stack =====
     const undoStack = [];
-    const MAX_UNDO = 5;
+    const MAX_UNDO = 10;
 
     function pushUndo(snapshot) {
         undoStack.push(snapshot);
         if (undoStack.length > MAX_UNDO) undoStack.shift();
         document.getElementById('undoBtn').disabled = undoStack.length === 0;
+        saveToLocalStorage();
     }
 
     function serializeScene() {
@@ -678,6 +808,119 @@
             label: o.userData.label || '',
             geometry: o.geometry.clone()
         }));
+    }
+
+    // ===== Geometry serialization =====
+    function geometryToJSON(geom) {
+        const type = geom.type;
+        const params = geom.parameters;
+        if (type === 'BoxGeometry') {
+            return { t: 'box', w: params.width, h: params.height, d: params.depth };
+        }
+        if (type === 'SphereGeometry') {
+            return { t: 'sphere', r: params.radius, ws: params.widthSegments, hs: params.heightSegments };
+        }
+        if (type === 'CylinderGeometry') {
+            return { t: 'cylinder', rt: params.radiusTop, rb: params.radiusBottom, h: params.height, s: params.radialSegments };
+        }
+        const pos = geom.attributes.position;
+        const norm = geom.attributes.normal;
+        const positions = Array.from(pos.array);
+        const normals = norm ? Array.from(norm.array) : [];
+        return { t: 'raw', positions, normals };
+    }
+
+    // Versi KOMPAK untuk cloud/localStorage - bulatkan koordinat, HAPUS normals (regenerate saat load)
+    function geometryToCompactJSON(geom) {
+        const type = geom.type;
+        const params = geom.parameters;
+        if (type === 'BoxGeometry') {
+            return { t: 'box', w: +params.width.toFixed(2), h: +params.height.toFixed(2), d: +params.depth.toFixed(2) };
+        }
+        if (type === 'SphereGeometry') {
+            return { t: 'sphere', r: +params.radius.toFixed(2) };
+        }
+        if (type === 'CylinderGeometry') {
+            return { t: 'cylinder', rt: +params.radiusTop.toFixed(2), rb: +params.radiusBottom.toFixed(2), h: +params.height.toFixed(2) };
+        }
+        // Raw: bulatkan ke 2 desimal, buang normals
+        const pos = geom.attributes.position;
+        const positions = new Array(pos.count * 3);
+        for (let i = 0; i < pos.count * 3; i++) {
+            positions[i] = +pos.array[i].toFixed(2);
+        }
+        return { t: 'raw', positions };
+    }
+
+    function geometryFromJSON(data) {
+        if (!data) return null;
+        if (data.t === 'box') return new THREE.BoxGeometry(data.w, data.h, data.d);
+        if (data.t === 'sphere') return new THREE.SphereGeometry(data.r, data.ws || 32, data.hs || 32);
+        if (data.t === 'cylinder') return new THREE.CylinderGeometry(data.rt, data.rb, data.h, data.s || 32);
+        if (data.t === 'raw') {
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(data.positions, 3));
+            if (data.normals && data.normals.length > 0) {
+                g.setAttribute('normal', new THREE.Float32BufferAttribute(data.normals, 3));
+            } else {
+                g.computeVertexNormals();
+            }
+            return g;
+        }
+        return null;
+    }
+
+    // Serialize untuk CLOUD (kompak)
+    function serializeForCloud() {
+        return objects.map(o => ({
+            position: o.position.toArray().map(v => +v.toFixed(2)),
+            rotation: [o.rotation.x, o.rotation.y, o.rotation.z].map(v => +v.toFixed(4)),
+            scale: o.scale.toArray().map(v => +v.toFixed(3)),
+            color: o.material.color.getHex(),
+            isHole: !!o.userData.isHole,
+            label: (o.userData.label || '').slice(0, 80),
+            geometry: geometryToCompactJSON(o.geometry)
+        }));
+    }
+
+    function restoreSceneFromCloud(dataArray) {
+        objects.forEach(o => {
+            scene.remove(o);
+            o.geometry.dispose();
+            o.material.dispose();
+        });
+        objects.length = 0;
+        selectedObject = null;
+        lastSelectedBefore = null;
+        transformControls.detach();
+        document.getElementById('dpad').classList.remove('show');
+        document.getElementById('rotpad').classList.remove('show');
+        document.getElementById('colorPickerRow').classList.remove('show');
+
+        dataArray.forEach(item => {
+            const geom = geometryFromJSON(item.geometry);
+            if (!geom) return;
+            const mat = new THREE.MeshStandardMaterial({
+                color: item.color,
+                roughness: item.isHole ? 0.5 : 0.4,
+                metalness: 0.05,
+                transparent: item.isHole,
+                opacity: item.isHole ? 0.55 : 1
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.position.fromArray(item.position);
+            mesh.rotation.set(item.rotation[0], item.rotation[1], item.rotation[2]);
+            mesh.scale.fromArray(item.scale);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData.isHole = item.isHole;
+            mesh.userData.label = item.label;
+            scene.add(mesh);
+            objects.push(mesh);
+        });
+
+        setStatus('Mode: Pilih | Objek: -');
+        saveToLocalStorage();
     }
 
     function restoreScene(snapshot) {
@@ -721,9 +964,32 @@
         showToast('↶ Undo berhasil');
     }
 
+    // ===== LocalStorage =====
+    function saveToLocalStorage() {
+        try {
+            const snapshot = serializeForCloud(); // pakai versi kompak
+            localStorage.setItem('3deditor_scene', JSON.stringify(snapshot));
+        } catch (e) {
+            console.warn('LocalStorage save failed:', e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const data = localStorage.getItem('3deditor_scene');
+            if (!data) return false;
+            const snapshot = JSON.parse(data);
+            if (!snapshot || snapshot.length === 0) return false;
+            restoreSceneFromCloud(snapshot);
+            return objects.length > 0;
+        } catch (e) { return false; }
+    }
+
     // ===== UI helpers =====
     const statusEl = document.getElementById('status');
     const toastEl = document.getElementById('toast');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingText = document.getElementById('loadingText');
     let toastTimer = null;
 
     function setStatus(text) { statusEl.textContent = text; }
@@ -732,13 +998,15 @@
         toastEl.classList.add('show');
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => toastEl.classList.remove('show'), duration);
+        if (navigator.vibrate) navigator.vibrate(15);
     }
+    function showLoading(text) { loadingText.textContent = text; loadingOverlay.classList.add('show'); }
+    function hideLoading() { loadingOverlay.classList.remove('show'); }
 
     function typeName(obj) {
         if (!obj) return '-';
         return obj.userData.label || obj.geometry?.type?.replace('Geometry', '') || 'Objek';
     }
-
     function posStr(obj) {
         return `(${obj.position.x.toFixed(1)}, ${obj.position.y.toFixed(1)}, ${obj.position.z.toFixed(1)})`;
     }
@@ -747,7 +1015,7 @@
         return `(${r(obj.rotation.x)}°, ${r(obj.rotation.y)}°, ${r(obj.rotation.z)}°)`;
     }
 
-    // ===== Create Objects =====
+    // ===== Create objects =====
     function makeMaterial(isHole, color) {
         return new THREE.MeshStandardMaterial({
             color: isHole ? 0x9966cc : color,
@@ -767,10 +1035,8 @@
         mesh.userData.isHole = false;
         mesh.userData.label = label;
         mesh.position.set(0, 10, 0);
-
         const offset = (objects.length % 5) * 15 - 30;
         mesh.position.x += offset;
-
         scene.add(mesh);
         objects.push(mesh);
         colorIndex++;
@@ -796,12 +1062,14 @@
             document.getElementById('toggleHoleBtn').classList.toggle('active', !!obj.userData.isHole);
             updatePanelVisibility();
             updateStatusFull();
+            updateColorPicker();
         } else {
             transformControls.detach();
             setStatus('Mode: Pilih | Objek: -');
             document.getElementById('toggleHoleBtn').classList.remove('active');
             document.getElementById('dpad').classList.remove('show');
             document.getElementById('rotpad').classList.remove('show');
+            document.getElementById('colorPickerRow').classList.remove('show');
         }
     }
 
@@ -811,7 +1079,6 @@
             document.getElementById('rotpad').classList.remove('show');
             return;
         }
-        // Panel sesuai mode
         if (transformMode === 'translate') {
             document.getElementById('dpad').classList.add('show');
             document.getElementById('rotpad').classList.remove('show');
@@ -854,26 +1121,72 @@
         setStatus('Mode: Pilih | Objek: -');
         document.getElementById('dpad').classList.remove('show');
         document.getElementById('rotpad').classList.remove('show');
+        document.getElementById('colorPickerRow').classList.remove('show');
         showToast('Objek dihapus');
+    }
+
+    function duplicateSelected() {
+        if (!selectedObject) { showToast('Pilih objek dulu'); return; }
+        pushUndo(serializeScene());
+        const src = selectedObject;
+        const geo = src.geometry.clone();
+        const mat = src.material.clone();
+        const dup = new THREE.Mesh(geo, mat);
+        dup.position.copy(src.position);
+        dup.position.x += 25;
+        dup.rotation.copy(src.rotation);
+        dup.scale.copy(src.scale);
+        dup.castShadow = true;
+        dup.receiveShadow = true;
+        dup.userData.isHole = src.userData.isHole;
+        dup.userData.label = (src.userData.label || 'Objek') + ' (copy)';
+        scene.add(dup);
+        objects.push(dup);
+        selectObject(dup);
+        showToast('⧉ Objek diduplikat');
+    }
+
+    // ===== Color picker =====
+    function updateColorPicker() {
+        const row = document.getElementById('colorPickerRow');
+        if (!selectedObject) { row.classList.remove('show'); return; }
+        row.innerHTML = '';
+        colors.forEach(c => {
+            const sw = document.createElement('div');
+            sw.className = 'color-swatch';
+            sw.style.background = '#' + c.toString(16).padStart(6, '0');
+            if (selectedObject.material.color.getHex() === c) sw.classList.add('active');
+            sw.addEventListener('click', () => {
+                if (!selectedObject) return;
+                if (selectedObject.userData.isHole) {
+                    showToast('Objek lubang tidak bisa diwarnai');
+                    return;
+                }
+                pushUndo(serializeScene());
+                selectedObject.material.color.setHex(c);
+                selectedObject.material.needsUpdate = true;
+                updateColorPicker();
+                showToast('🎨 Warna diubah');
+            });
+            row.appendChild(sw);
+        });
+        row.classList.add('show');
     }
 
     // ===== Tap detection =====
     let pointerDownPos = { x: 0, y: 0, t: 0 };
     let pointerMoved = false;
-
     renderer.domElement.addEventListener('pointerdown', (e) => {
         if (e.button !== 0 && e.pointerType === 'mouse') return;
         pointerDownPos = { x: e.clientX, y: e.clientY, t: Date.now() };
         pointerMoved = false;
     });
-
     renderer.domElement.addEventListener('pointermove', (e) => {
         if (!pointerDownPos.t) return;
         const dx = e.clientX - pointerDownPos.x;
         const dy = e.clientY - pointerDownPos.y;
         if (dx * dx + dy * dy > 100) pointerMoved = true;
     });
-
     renderer.domElement.addEventListener('pointerup', (e) => {
         if (!pointerDownPos.t) return;
         const dt = Date.now() - pointerDownPos.t;
@@ -884,20 +1197,15 @@
         pointerDownPos.t = 0;
         if (!isTap) return;
         if (transformControls.dragging) return;
-
         pointer.x = (e.clientX / renderer.domElement.clientWidth) * 2 - 1;
         pointer.y = -(e.clientY / renderer.domElement.clientHeight) * 2 + 1;
         raycaster.setFromCamera(pointer, camera);
-
         const hits = raycaster.intersectObjects(objects, false);
-        if (hits.length > 0) {
-            selectObject(hits[0].object);
-        } else {
-            selectObject(null);
-        }
+        if (hits.length > 0) selectObject(hits[0].object);
+        else selectObject(null);
     });
 
-    // ===== D-PAD: Geser objek =====
+    // ===== D-Pad =====
     function moveSelected(dx, dy, dz) {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
         selectedObject.position.x += dx;
@@ -905,7 +1213,6 @@
         selectedObject.position.z += dz;
         updateStatusFull();
     }
-
     function handleDpadAction(action) {
         const s = dpadStep;
         switch (action) {
@@ -917,11 +1224,8 @@
             case 'z+': moveSelected(0, 0, +s); break;
         }
     }
-
     const dpad = document.getElementById('dpad');
-    let dpadHoldTimer = null;
-    let dpadHoldInterval = null;
-
+    let dpadHoldTimer = null, dpadHoldInterval = null;
     function startDpadHold(action, cell) {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
         pushUndo(serializeScene());
@@ -931,15 +1235,11 @@
             dpadHoldInterval = setInterval(() => handleDpadAction(action), 120);
         }, 400);
     }
-
     function endDpadHold(cell) {
-        clearTimeout(dpadHoldTimer);
-        clearInterval(dpadHoldInterval);
-        dpadHoldTimer = null;
-        dpadHoldInterval = null;
+        clearTimeout(dpadHoldTimer); clearInterval(dpadHoldInterval);
+        dpadHoldTimer = null; dpadHoldInterval = null;
         if (cell) cell.classList.remove('pressed');
     }
-
     dpad.querySelectorAll('.dpad-cell[data-action]').forEach(cell => {
         const action = cell.dataset.action;
         cell.addEventListener('pointerdown', (e) => {
@@ -947,14 +1247,10 @@
             cell.setPointerCapture(e.pointerId);
             startDpadHold(action, cell);
         });
-        cell.addEventListener('pointerup', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            endDpadHold(cell);
-        });
+        cell.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); endDpadHold(cell); });
         cell.addEventListener('pointercancel', () => endDpadHold(cell));
         cell.addEventListener('pointerleave', () => endDpadHold(cell));
     });
-
     dpad.querySelectorAll('.step-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             dpadStep = parseFloat(btn.dataset.step);
@@ -964,16 +1260,13 @@
         });
     });
 
-    // ===== ROTPAD: Rotasi objek =====
-    // Rotasi dilakukan dalam derajat, per axis lokal
-    // Menggunakan THREE.MathUtils.degToRad dan menambahkan ke rotation objek saat ini
+    // ===== Rotpad =====
     function rotateSelected(axis, deltaDeg) {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
         const rad = THREE.MathUtils.degToRad(deltaDeg);
         selectedObject.rotation[axis] += rad;
         updateStatusFull();
     }
-
     function handleRotAction(action) {
         const s = rotStep;
         switch (action) {
@@ -985,11 +1278,8 @@
             case 'z+': rotateSelected('z', +s); break;
         }
     }
-
     const rotpad = document.getElementById('rotpad');
-    let rotHoldTimer = null;
-    let rotHoldInterval = null;
-
+    let rotHoldTimer = null, rotHoldInterval = null;
     function startRotHold(action, cell) {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
         pushUndo(serializeScene());
@@ -999,15 +1289,11 @@
             rotHoldInterval = setInterval(() => handleRotAction(action), 120);
         }, 400);
     }
-
     function endRotHold(cell) {
-        clearTimeout(rotHoldTimer);
-        clearInterval(rotHoldInterval);
-        rotHoldTimer = null;
-        rotHoldInterval = null;
+        clearTimeout(rotHoldTimer); clearInterval(rotHoldInterval);
+        rotHoldTimer = null; rotHoldInterval = null;
         if (cell) cell.classList.remove('pressed');
     }
-
     rotpad.querySelectorAll('.dpad-cell[data-rot]').forEach(cell => {
         const action = cell.dataset.rot;
         cell.addEventListener('pointerdown', (e) => {
@@ -1015,14 +1301,10 @@
             cell.setPointerCapture(e.pointerId);
             startRotHold(action, cell);
         });
-        cell.addEventListener('pointerup', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            endRotHold(cell);
-        });
+        cell.addEventListener('pointerup', (e) => { e.preventDefault(); e.stopPropagation(); endRotHold(cell); });
         cell.addEventListener('pointercancel', () => endRotHold(cell));
         cell.addEventListener('pointerleave', () => endRotHold(cell));
     });
-
     rotpad.querySelectorAll('.step-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             rotStep = parseFloat(btn.dataset.rotstep);
@@ -1031,8 +1313,6 @@
             showToast(`Step rotasi: ${rotStep}°`);
         });
     });
-
-    // Reset rotasi
     document.getElementById('resetRotBtn').addEventListener('click', () => {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
         pushUndo(serializeScene());
@@ -1041,7 +1321,7 @@
         showToast('🔄 Rotasi di-reset ke 0°');
     });
 
-    // ===== Panel Ukuran =====
+    // ===== Size panel =====
     const sizePanel = document.getElementById('sizePanel');
     const sizeX = document.getElementById('sizeX');
     const sizeY = document.getElementById('sizeY');
@@ -1057,13 +1337,11 @@
 
     function openSizePanel() {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
-
         const obj = selectedObject;
         obj.updateMatrixWorld(true);
         const bbox = new THREE.Box3().setFromObject(obj);
         const size = new THREE.Vector3();
         bbox.getSize(size);
-
         sizeInfo.innerHTML = `Objek: <b>${typeName(obj)}</b>${obj.userData.isHole ? ' [Lubang]' : ''}`;
         sizeX.value = size.x.toFixed(1);
         sizeY.value = size.y.toFixed(1);
@@ -1075,62 +1353,43 @@
         rotY.value = (obj.rotation.y * 180 / Math.PI).toFixed(0);
         rotZ.value = (obj.rotation.z * 180 / Math.PI).toFixed(0);
         isHoleCheckbox.checked = !!obj.userData.isHole;
-
         sizePanel.classList.add('show');
     }
-
-    function closeSizePanel() {
-        sizePanel.classList.remove('show');
-    }
-
+    function closeSizePanel() { sizePanel.classList.remove('show'); }
     function applySize() {
         if (!selectedObject) { closeSizePanel(); return; }
-
         const obj = selectedObject;
         const newX = parseFloat(sizeX.value);
         const newY = parseFloat(sizeY.value);
         const newZ = parseFloat(sizeZ.value);
-
         if ([newX, newY, newZ].some(v => isNaN(v) || v <= 0)) {
             showToast('Ukuran harus > 0');
             return;
         }
-
         pushUndo(serializeScene());
-
-        // Reset rotasi dulu supaya scaling ukuran di world-aligned
         obj.rotation.set(0, 0, 0);
         obj.scale.set(1, 1, 1);
-
         obj.updateMatrixWorld(true);
         const bboxOld = new THREE.Box3().setFromObject(obj);
         const oldSize = new THREE.Vector3();
         bboxOld.getSize(oldSize);
-
         const sx = newX / (oldSize.x || 1);
         const sy = newY / (oldSize.y || 1);
         const sz = newZ / (oldSize.z || 1);
-
         const geom = obj.geometry.clone();
         geom.applyMatrix4(new THREE.Matrix4().makeScale(sx, sy, sz));
-
         geom.computeBoundingBox();
         const center = new THREE.Vector3();
         geom.boundingBox.getCenter(center);
         geom.translate(-center.x, -center.y, -center.z);
-
         obj.geometry.dispose();
         obj.geometry = geom;
-
-        // Posisi
         const px = parseFloat(posX.value);
         const py = parseFloat(posY.value);
         const pz = parseFloat(posZ.value);
         if (!isNaN(px)) obj.position.x = px;
         if (!isNaN(py)) obj.position.y = py;
         if (!isNaN(pz)) obj.position.z = pz;
-
-        // Rotasi (dalam derajat)
         const rx = parseFloat(rotX.value) || 0;
         const ry = parseFloat(rotY.value) || 0;
         const rz = parseFloat(rotZ.value) || 0;
@@ -1139,25 +1398,20 @@
             THREE.MathUtils.degToRad(ry),
             THREE.MathUtils.degToRad(rz)
         );
-
-        // Toggle lubang
         const wantHole = isHoleCheckbox.checked;
-        if (wantHole !== !!obj.userData.isHole) {
-            setHoleState(obj, wantHole);
-        }
-
+        if (wantHole !== !!obj.userData.isHole) setHoleState(obj, wantHole);
         closeSizePanel();
         selectObject(obj);
+        saveToLocalStorage();
         showToast(`Ukuran ${newX}×${newY}×${newZ} mm diterapkan`);
     }
-
     document.getElementById('editSizeBtn').addEventListener('click', openSizePanel);
     document.getElementById('closeSizePanel').addEventListener('click', closeSizePanel);
     document.getElementById('cancelSize').addEventListener('click', closeSizePanel);
     document.getElementById('applySize').addEventListener('click', applySize);
     sizePanel.addEventListener('click', (e) => { if (e.target === sizePanel) closeSizePanel(); });
 
-    // ===== Hole toggle =====
+    // ===== Hole =====
     function setHoleState(obj, isHole) {
         obj.userData.isHole = isHole;
         const col = isHole ? 0x9966cc : colors[colorIndex % colors.length];
@@ -1166,11 +1420,8 @@
         obj.material.opacity = isHole ? 0.55 : 1;
         obj.material.roughness = isHole ? 0.5 : 0.4;
         obj.material.needsUpdate = true;
-        if (isHole) {
-            obj.userData.label = `Lubang #${++holeCounter}`;
-        }
+        if (isHole) obj.userData.label = `Lubang #${++holeCounter}`;
     }
-
     function toggleHole() {
         if (!selectedObject) { showToast('Pilih objek dulu'); return; }
         pushUndo(serializeScene());
@@ -1179,66 +1430,48 @@
         showToast(selectedObject.userData.isHole ? 'Objek jadi lubang' : 'Objek jadi solid');
         selectObject(selectedObject);
     }
-
     document.getElementById('toggleHoleBtn').addEventListener('click', toggleHole);
 
-    // ===== UNION / Gabung =====
+    // ===== Union =====
     async function unionSelected() {
         if (!selectedObject) { showToast('Pilih objek target dulu'); return; }
         if (!lastSelectedBefore) { showToast('Pilih objek lain dulu, lalu tekan Gabung'); return; }
         if (lastSelectedBefore === selectedObject) { showToast('Pilih 2 objek berbeda'); return; }
-
         const target = selectedObject;
         const source = lastSelectedBefore;
-        if (!target.isMesh || !source.isMesh) { showToast('Hanya objek mesh yang bisa digabung'); return; }
-
+        if (!target.isMesh || !source.isMesh) { showToast('Hanya objek mesh'); return; }
         pushUndo(serializeScene());
-
         const targetHole = !!target.userData.isHole;
         const sourceHole = !!source.userData.isHole;
-
-        if (!targetHole && !sourceHole) {
-            doMergeUnion(target, source);
-        } else if (!targetHole && sourceHole) {
+        if (!targetHole && !sourceHole) doMergeUnion(target, source);
+        else if (!targetHole && sourceHole) {
+            showLoading('Memotong lubang...');
             await doCSGSubtract(target, source);
+            hideLoading();
         } else if (targetHole && !sourceHole) {
+            showLoading('Memotong lubang...');
             await doCSGSubtract(source, target);
+            hideLoading();
         } else {
             showToast('Tidak bisa gabung dua lubang');
         }
     }
-
     function doMergeUnion(a, b) {
-        a.updateMatrixWorld(true);
-        b.updateMatrixWorld(true);
-
+        a.updateMatrixWorld(true); b.updateMatrixWorld(true);
         const geomA = a.geometry.clone().applyMatrix4(a.matrixWorld);
         const geomB = b.geometry.clone().applyMatrix4(b.matrixWorld);
-
         const merged = mergeGeometries([geomA, geomB], false);
         if (!merged) { showToast('Gagal gabung'); return; }
-
-        const mat = new THREE.MeshStandardMaterial({
-            color: a.material.color.getHex(),
-            roughness: 0.4,
-            metalness: 0.05
-        });
+        const mat = new THREE.MeshStandardMaterial({ color: a.material.color.getHex(), roughness: 0.4, metalness: 0.05 });
         const resultMesh = new THREE.Mesh(merged, mat);
-        resultMesh.castShadow = true;
-        resultMesh.receiveShadow = true;
-        resultMesh.userData.isHole = false;
-        resultMesh.userData.label = 'Gabungan';
-
-        removeFromScene(a);
-        removeFromScene(b);
-
-        scene.add(resultMesh);
-        objects.push(resultMesh);
-        selectObject(resultMesh);
-        lastSelectedBefore = null;
+        resultMesh.castShadow = true; resultMesh.receiveShadow = true;
+        resultMesh.userData.isHole = false; resultMesh.userData.label = 'Gabungan';
+        removeFromScene(a); removeFromScene(b);
+        scene.add(resultMesh); objects.push(resultMesh);
+        selectObject(resultMesh); lastSelectedBefore = null;
+        saveToLocalStorage();
         showToast('✅ Objek digabung');
     }
-
     function removeFromScene(mesh) {
         scene.remove(mesh);
         const i = objects.indexOf(mesh);
@@ -1246,148 +1479,513 @@
         if (mesh.geometry) mesh.geometry.dispose();
         if (mesh.material) mesh.material.dispose();
     }
-
     async function doCSGSubtract(solidMesh, holeMesh) {
         try {
             const { Evaluator, Brush, SUBTRACTION } = await import('https://esm.sh/three-bvh-csg@0.0.16');
-
-            solidMesh.updateMatrixWorld(true);
-            holeMesh.updateMatrixWorld(true);
-
+            solidMesh.updateMatrixWorld(true); holeMesh.updateMatrixWorld(true);
             const brushA = new Brush(solidMesh.geometry.clone());
-            brushA.applyMatrix4(solidMesh.matrixWorld);
-            brushA.updateMatrixWorld();
-
+            brushA.applyMatrix4(solidMesh.matrixWorld); brushA.updateMatrixWorld();
             const brushB = new Brush(holeMesh.geometry.clone());
-            brushB.applyMatrix4(holeMesh.matrixWorld);
-            brushB.updateMatrixWorld();
-
+            brushB.applyMatrix4(holeMesh.matrixWorld); brushB.updateMatrixWorld();
             const evaluator = new Evaluator();
             evaluator.attributes = ['position', 'normal'];
             const result = evaluator.evaluate(brushA, brushB, SUBTRACTION);
-
-            const mat = new THREE.MeshStandardMaterial({
-                color: solidMesh.material.color.getHex(),
-                roughness: 0.4,
-                metalness: 0.05
-            });
+            const mat = new THREE.MeshStandardMaterial({ color: solidMesh.material.color.getHex(), roughness: 0.4, metalness: 0.05 });
             const resultMesh = new THREE.Mesh(result.geometry, mat);
-            resultMesh.castShadow = true;
-            resultMesh.receiveShadow = true;
-            resultMesh.userData.isHole = false;
-            resultMesh.userData.label = 'Union+Potong';
-
-            removeFromScene(solidMesh);
-            removeFromScene(holeMesh);
-
-            scene.add(resultMesh);
-            objects.push(resultMesh);
-            selectObject(resultMesh);
-            lastSelectedBefore = null;
+            resultMesh.castShadow = true; resultMesh.receiveShadow = true;
+            resultMesh.userData.isHole = false; resultMesh.userData.label = 'Union+Potong';
+            removeFromScene(solidMesh); removeFromScene(holeMesh);
+            scene.add(resultMesh); objects.push(resultMesh);
+            selectObject(resultMesh); lastSelectedBefore = null;
+            saveToLocalStorage();
             showToast('✅ Objek digabung & lubang dipotong');
         } catch (err) {
-            console.warn('CSG gagal, fallback merge:', err);
-            removeFromScene(holeMesh);
-            selectObject(solidMesh);
-            showToast('⚠️ CSG gagal — lubang dihapus, solid tetap');
+            console.warn('CSG gagal:', err);
+            removeFromScene(holeMesh); selectObject(solidMesh);
+            showToast('⚠️ CSG gagal — lubang dihapus');
         }
     }
-
     document.getElementById('unionBtn').addEventListener('click', unionSelected);
 
-    // ===== IMPORT STL =====
+    // ===== Import STL =====
     const importModal = document.getElementById('importModal');
     const stlFileInput = document.getElementById('stlFileInput');
-
-    function openImportModal() {
-        importModal.classList.add('show');
-    }
-    function closeImportModal() {
-        importModal.classList.remove('show');
-        stlFileInput.value = '';
-    }
-
+    function openImportModal() { importModal.classList.add('show'); }
+    function closeImportModal() { importModal.classList.remove('show'); stlFileInput.value = ''; }
     document.getElementById('importBtn').addEventListener('click', openImportModal);
     document.getElementById('closeImport').addEventListener('click', closeImportModal);
     document.getElementById('pickStlBtn').addEventListener('click', () => stlFileInput.click());
     document.getElementById('stlDropZone').addEventListener('click', () => stlFileInput.click());
     importModal.addEventListener('click', (e) => { if (e.target === importModal) closeImportModal(); });
-
     stlFileInput.addEventListener('change', (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (!file.name.toLowerCase().endsWith('.stl')) {
-            showToast('❌ File harus .stl');
-            return;
-        }
+        if (!file.name.toLowerCase().endsWith('.stl')) { showToast('❌ File harus .stl'); return; }
         loadSTLFile(file);
     });
-
     function loadSTLFile(file) {
         closeImportModal();
-        showToast(`⏳ Memuat ${file.name}...`, 8000);
-
+        showLoading(`Memuat ${file.name}...`);
         const reader = new FileReader();
         reader.onload = (evt) => {
             try {
                 const arrayBuffer = evt.target.result;
                 const loader = new STLLoader();
                 const geometry = loader.parse(arrayBuffer);
-
-                if (!geometry.attributes.normal) {
-                    geometry.computeVertexNormals();
-                }
-
+                if (!geometry.attributes.normal) geometry.computeVertexNormals();
                 geometry.computeBoundingBox();
                 const bbox = geometry.boundingBox;
                 const center = new THREE.Vector3();
                 bbox.getCenter(center);
-
                 geometry.translate(-center.x, -center.y, -center.z);
-
                 geometry.computeBoundingBox();
                 const finalBBox = geometry.boundingBox;
                 const finalSize = new THREE.Vector3();
                 finalBBox.getSize(finalSize);
-
                 pushUndo(serializeScene());
                 const col = colors[colorIndex % colors.length];
                 colorIndex++;
                 const mat = makeMaterial(false, col);
                 const mesh = new THREE.Mesh(geometry, mat);
-
                 mesh.position.set(0, finalSize.y / 2, 0);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
+                mesh.castShadow = true; mesh.receiveShadow = true;
                 mesh.userData.isHole = false;
                 mesh.userData.label = file.name.replace(/\.stl$/i, '');
-
-                scene.add(mesh);
-                objects.push(mesh);
+                scene.add(mesh); objects.push(mesh);
                 selectObject(mesh);
-
+                saveToLocalStorage();
+                hideLoading();
                 showToast(`✅ ${file.name} dimuat (${finalSize.x.toFixed(1)}×${finalSize.y.toFixed(1)}×${finalSize.z.toFixed(1)} mm)`);
             } catch (err) {
+                hideLoading();
                 console.error(err);
                 showToast('❌ Gagal memuat STL: ' + err.message);
             }
         };
-        reader.onerror = () => showToast('❌ Gagal baca file');
+        reader.onerror = () => { hideLoading(); showToast('❌ Gagal baca file'); };
         reader.readAsArrayBuffer(file);
     }
 
-    // ===== Buttons =====
+    // ===== Export STL =====
+    const exportModal = document.getElementById('exportModal');
+    let exportFormat = 'binary';
+    let exportScope = 'all';
+    function openExportModal() {
+        if (objects.length === 0) { showToast('Belum ada objek untuk di-export'); return; }
+        const solidCount = objects.filter(o => !o.userData.isHole).length;
+        const holeCount = objects.filter(o => o.userData.isHole).length;
+        let triCount = 0;
+        objects.forEach(o => {
+            if (o.userData.isHole) return;
+            const pos = o.geometry.attributes.position;
+            if (pos) triCount += Math.floor(pos.count / 3);
+        });
+        document.getElementById('exportStats').innerHTML =
+            `📊 <b>${solidCount}</b> objek solid, <b>${holeCount}</b> lubang<br>` +
+            `🔺 Total <b>${triCount.toLocaleString()}</b> triangle<br>` +
+            `📏 Satuan: <b>mm</b>`;
+        const selOpt = document.querySelector('.export-option[data-scope="selected"]');
+        if (selectedObject) {
+            selOpt.style.opacity = '1';
+            selOpt.style.pointerEvents = 'auto';
+            document.getElementById('selectedScopeDesc').textContent = `Export "${typeName(selectedObject)}" saja`;
+        } else {
+            selOpt.style.opacity = '0.5';
+            selOpt.style.pointerEvents = 'none';
+            document.getElementById('selectedScopeDesc').textContent = 'Pilih objek terlebih dahulu';
+            if (exportScope === 'selected') {
+                exportScope = 'all';
+                document.querySelectorAll('.export-option[data-scope]').forEach(o => {
+                    o.classList.toggle('selected', o.dataset.scope === 'all');
+                });
+            }
+        }
+        exportModal.classList.add('show');
+    }
+    function closeExportModal() { exportModal.classList.remove('show'); }
+    document.getElementById('exportBtn').addEventListener('click', openExportModal);
+    document.getElementById('closeExport').addEventListener('click', closeExportModal);
+    exportModal.addEventListener('click', (e) => { if (e.target === exportModal) closeExportModal(); });
+    document.querySelectorAll('.export-option[data-format]').forEach(opt => {
+        opt.addEventListener('click', () => {
+            exportFormat = opt.dataset.format;
+            document.querySelectorAll('.export-option[data-format]').forEach(o => o.classList.toggle('selected', o === opt));
+        });
+    });
+    document.querySelectorAll('.export-option[data-scope]').forEach(opt => {
+        opt.addEventListener('click', () => {
+            if (opt.style.pointerEvents === 'none') return;
+            exportScope = opt.dataset.scope;
+            document.querySelectorAll('.export-option[data-scope]').forEach(o => o.classList.toggle('selected', o === opt));
+        });
+    });
+    function doExport() {
+        try {
+            showLoading('Mengexport STL...');
+            setTimeout(() => {
+                let exportObjects = [];
+                if (exportScope === 'selected' && selectedObject) exportObjects = [selectedObject];
+                else exportObjects = objects.slice();
+                exportObjects = exportObjects.filter(o => !o.userData.isHole);
+                if (exportObjects.length === 0) {
+                    hideLoading(); showToast('❌ Tidak ada objek solid'); return;
+                }
+                const exportGroup = new THREE.Group();
+                exportObjects.forEach(o => {
+                    o.updateMatrixWorld(true);
+                    const geom = o.geometry.clone();
+                    geom.applyMatrix4(o.matrixWorld);
+                    const mesh = new THREE.Mesh(geom, new THREE.MeshBasicMaterial());
+                    exportGroup.add(mesh);
+                });
+                const exporter = new STLExporter();
+                const result = exporter.parse(exportGroup, { binary: exportFormat === 'binary' });
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+                let blob, filename;
+                if (exportFormat === 'binary') {
+                    blob = new Blob([result], { type: 'application/octet-stream' });
+                } else {
+                    blob = new Blob([result], { type: 'text/plain' });
+                }
+                filename = `3d-editor-${timestamp}.stl`;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                exportGroup.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
+                hideLoading(); closeExportModal();
+                showToast(`✅ STL di-export (${(blob.size / 1024).toFixed(1)} KB)`, 2500);
+            }, 50);
+        } catch (err) {
+            hideLoading();
+            console.error(err);
+            showToast('❌ Gagal export: ' + err.message);
+        }
+    }
+    document.getElementById('doExportBtn').addEventListener('click', doExport);
+
+    // ===== FIREBASE AUTH =====
+    const authModal = document.getElementById('authModal');
+    const authBtn = document.getElementById('authBtn');
+    const authLoggedOut = document.getElementById('authLoggedOut');
+    const authLoggedIn = document.getElementById('authLoggedIn');
+    const authTitle = document.getElementById('authTitle');
+
+    function openAuthModal() {
+        authModal.classList.add('show');
+        updateAuthUI();
+    }
+    function closeAuthModal() { authModal.classList.remove('show'); }
+
+    authBtn.addEventListener('click', openAuthModal);
+    document.getElementById('closeAuth').addEventListener('click', closeAuthModal);
+    authModal.addEventListener('click', (e) => { if (e.target === authModal) closeAuthModal(); });
+
+    async function doGoogleLogin() {
+        const provider = new GoogleAuthProvider();
+        try {
+            showLoading('Membuka login Google...');
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (err) {
+                if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+                    await signInWithRedirect(auth, provider);
+                } else {
+                    throw err;
+                }
+            }
+            hideLoading();
+        } catch (err) {
+            hideLoading();
+            console.error('Login error:', err);
+            showToast('❌ Login gagal: ' + (err.message || err.code));
+        }
+    }
+
+    document.getElementById('googleLoginBtn').addEventListener('click', doGoogleLogin);
+
+    getRedirectResult(auth).then((result) => {
+        if (result && result.user) {
+            showToast(`✅ Selamat datang, ${result.user.displayName || result.user.email}`);
+        }
+    }).catch((err) => {
+        console.warn('Redirect result error:', err);
+    });
+
+    onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        updateAuthUI();
+        if (user) {
+            console.log('User logged in:', user.uid, user.email);
+        } else {
+            currentDesignId = null;
+            currentDesignName = null;
+        }
+    });
+
+    function updateAuthUI() {
+        if (currentUser) {
+            authLoggedOut.style.display = 'none';
+            authLoggedIn.style.display = 'block';
+            authTitle.textContent = '👤 Akun Saya';
+            document.getElementById('authUserPhoto').src = currentUser.photoURL || '';
+            document.getElementById('authUserName').textContent = currentUser.displayName || 'User';
+            document.getElementById('authUserEmail').textContent = currentUser.email || '';
+            authBtn.classList.add('logged-in');
+            if (currentUser.photoURL) {
+                authBtn.innerHTML = `<img src="${currentUser.photoURL}" alt="">`;
+            } else {
+                authBtn.innerHTML = '👤';
+            }
+            authBtn.title = currentUser.displayName || currentUser.email;
+        } else {
+            authLoggedOut.style.display = 'block';
+            authLoggedIn.style.display = 'none';
+            authTitle.textContent = '🔐 Login';
+            authBtn.classList.remove('logged-in');
+            authBtn.innerHTML = '👤';
+            authBtn.title = 'Login';
+        }
+    }
+
+    document.getElementById('authLogoutBtn').addEventListener('click', async () => {
+        if (!confirm('Yakin ingin logout?')) return;
+        try {
+            await signOut(auth);
+            closeAuthModal();
+            showToast('👋 Logout berhasil');
+        } catch (err) {
+            showToast('❌ Gagal logout: ' + err.message);
+        }
+    });
+
+    // ===== SAVE TO CLOUD (Firebase Realtime Database) =====
+    const saveModal = document.getElementById('saveModal');
+    const saveModalInput = document.getElementById('saveModalInput');
+    const saveInfo = document.getElementById('saveInfo');
+    const saveStatus = document.getElementById('saveStatus');
+
+    function openSaveModal() {
+        if (!currentUser) {
+            showToast('🔐 Login dulu untuk menyimpan ke cloud');
+            openAuthModal();
+            return;
+        }
+        if (objects.length === 0) {
+            showToast('Belum ada objek untuk disimpan');
+            return;
+        }
+        saveInfo.textContent = `${objects.length} objek akan disimpan`;
+        saveModalInput.value = currentDesignName || `Desain ${new Date().toLocaleDateString('id-ID')}`;
+
+        saveStatus.className = 'cloud-status';
+        saveStatus.textContent = currentDesignId
+            ? `⚡ Update "${currentDesignName}"`
+            : `✨ Desain baru`;
+
+        saveModal.classList.add('show');
+        setTimeout(() => saveModalInput.focus(), 100);
+    }
+    function closeSaveModal() { saveModal.classList.remove('show'); }
+
+    document.getElementById('saveCloudBtn').addEventListener('click', openSaveModal);
+    document.getElementById('authSaveBtn').addEventListener('click', () => { closeAuthModal(); openSaveModal(); });
+    document.getElementById('cancelSaveBtn').addEventListener('click', closeSaveModal);
+    saveModal.addEventListener('click', (e) => { if (e.target === saveModal) closeSaveModal(); });
+
+    async function saveDesignToCloud() {
+        if (!currentUser) { showToast('Login dulu'); return; }
+        const name = (saveModalInput.value || '').trim();
+        if (!name) { showToast('Nama desain tidak boleh kosong'); return; }
+        if (objects.length === 0) { showToast('Tidak ada objek'); return; }
+
+        closeSaveModal();
+        showLoading('Menyimpan ke cloud...');
+
+        // ⏱️ TIMEOUT GUARD
+        let timedOut = false;
+        const timeoutId = setTimeout(() => {
+            timedOut = true;
+            hideLoading();
+            showToast('⏱️ Timeout 20 detik. Cek koneksi internet Anda.', 5000);
+        }, 20000);
+
+        try {
+            const designData = serializeForCloud();
+            
+            // Gunakan Realtime Database
+            const designsRef = ref(rtdb, `users/${currentUser.uid}/designs`);
+            
+            // Jika update, gunakan ID yang sama. Jika baru, buat ID unik (timestamp)
+            const targetId = currentDesignId || 'design_' + Date.now();
+            
+            const payload = {
+                name: name,
+                data: designData,
+                objectCount: objects.length,
+                updatedAt: Date.now()
+            };
+            
+            // Simpan ke node spesifik
+            await set(child(designsRef, targetId), payload);
+            
+            if (timedOut) return;
+            clearTimeout(timeoutId);
+            
+            currentDesignId = targetId;
+            currentDesignName = name;
+            hideLoading();
+            showToast(`✅ "${name}" tersimpan!`, 2000);
+        } catch (err) {
+            if (timedOut) return;
+            clearTimeout(timeoutId);
+            hideLoading();
+            console.error('[Cloud Save] Error:', err);
+            showToast('❌ Gagal simpan: ' + (err.message || err.code || 'Koneksi error'), 5000);
+        }
+    }
+
+    document.getElementById('confirmSaveBtn').addEventListener('click', saveDesignToCloud);
+    saveModalInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveDesignToCloud(); });
+
+    // ===== MY DESIGNS =====
+    const designsModal = document.getElementById('designsModal');
+    const designsList = document.getElementById('designsList');
+
+    function openDesignsModal() {
+        if (!currentUser) {
+            showToast('🔐 Login dulu untuk melihat desain');
+            openAuthModal();
+            return;
+        }
+        designsModal.classList.add('show');
+        loadDesignsList();
+    }
+    function closeDesignsModal() { designsModal.classList.remove('show'); }
+
+    document.getElementById('myDesignsBtn').addEventListener('click', openDesignsModal);
+    document.getElementById('authMyDesignsBtn').addEventListener('click', () => { closeAuthModal(); openDesignsModal(); });
+    document.getElementById('closeDesigns').addEventListener('click', closeDesignsModal);
+    designsModal.addEventListener('click', (e) => { if (e.target === designsModal) closeDesignsModal(); });
+
+    async function loadDesignsList() {
+        designsList.innerHTML = `<div class="empty-state"><div class="big-icon">⏳</div><div>Memuat desain...</div></div>`;
+
+        const timeoutId = setTimeout(() => {
+            designsList.innerHTML = `<div class="empty-state"><div class="big-icon">⏱️</div><div>Timeout. Cek koneksi internet.</div></div>`;
+        }, 15000);
+
+        try {
+            const designsRef = ref(rtdb, `users/${currentUser.uid}/designs`);
+            const snapshot = await get(designsRef);
+            clearTimeout(timeoutId);
+
+            if (!snapshot.exists()) {
+                designsList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="big-icon">📭</div>
+                        <div>Belum ada desain tersimpan</div>
+                        <div style="font-size:11px;margin-top:8px;opacity:0.7">Tap ☁️ untuk menyimpan desain pertama Anda</div>
+                    </div>`;
+                return;
+            }
+
+            const dataObj = snapshot.val();
+            // Ubah object menjadi array untuk sorting
+            const designsArray = Object.keys(dataObj).map(key => ({
+                id: key,
+                ...dataObj[key]
+            }));
+            
+            // Urutkan berdasarkan updatedAt terbaru
+            designsArray.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+            designsList.innerHTML = '';
+            designsArray.forEach(d => {
+                const item = document.createElement('div');
+                item.className = 'design-item';
+                const timeStr = d.updatedAt ? new Date(d.updatedAt).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+                
+                item.innerHTML = `
+                    <div class="dinfo">
+                        <div class="dname">${escapeHtml(d.name || 'Tanpa Nama')}</div>
+                        <div class="dmeta">${d.objectCount || (d.data?.length || 0)} objek • ${timeStr}${d.id === currentDesignId ? ' • <b style="color:#4ade80">aktif</b>' : ''}</div>
+                    </div>
+                    <div class="dactions">
+                        <button class="dbtn load" title="Muat">📂</button>
+                        <button class="dbtn del" title="Hapus">🗑️</button>
+                    </div>
+                `;
+                item.querySelector('.load').addEventListener('click', () => loadDesignById(d.id, d.name));
+                item.querySelector('.del').addEventListener('click', () => deleteDesignById(d.id, d.name));
+                designsList.appendChild(item);
+            });
+        } catch (err) {
+            clearTimeout(timeoutId);
+            console.error('Load designs error:', err);
+            designsList.innerHTML = `<div class="empty-state"><div class="big-icon">⚠️</div><div>${escapeHtml(err.message || 'Gagal memuat data')}</div></div>`;
+        }
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadDesignById(id, name) {
+        try {
+            showLoading('Memuat desain...');
+            const timeoutId = setTimeout(() => {
+                hideLoading();
+                showToast('⏱️ Timeout memuat desain', 3000);
+            }, 15000);
+
+            const docRef = ref(rtdb, `users/${currentUser.uid}/designs/${id}`);
+            const snapshot = await get(docRef);
+            clearTimeout(timeoutId);
+
+            if (!snapshot.exists()) { hideLoading(); showToast('❌ Desain tidak ditemukan'); return; }
+            const data = snapshot.val();
+            
+            restoreSceneFromCloud(data.data || []);
+            currentDesignId = id;
+            currentDesignName = data.name || name || 'Tanpa Nama';
+            hideLoading();
+            closeDesignsModal();
+            showToast(`📂 "${currentDesignName}" dimuat`, 2000);
+        } catch (err) {
+            hideLoading();
+            console.error('Load design error:', err);
+            showToast('❌ Gagal load: ' + (err.message || 'Error'));
+        }
+    }
+
+    async function deleteDesignById(id, name) {
+        if (!confirm(`Hapus desain "${name}"?`)) return;
+        try {
+            await remove(ref(rtdb, `users/${currentUser.uid}/designs/${id}`));
+            if (currentDesignId === id) {
+                currentDesignId = null;
+                currentDesignName = null;
+            }
+            showToast('🗑️ Desain dihapus');
+            loadDesignsList();
+        } catch (err) {
+            console.error('Delete error:', err);
+            showToast('❌ Gagal hapus: ' + (err.message || 'Error'));
+        }
+    }
+
+    // ===== Basic buttons =====
     document.getElementById('addBox').addEventListener('click', addBox);
     document.getElementById('addSphere').addEventListener('click', addSphere);
     document.getElementById('addCylinder').addEventListener('click', addCylinder);
     document.getElementById('toggleTranslate').addEventListener('click', () => setTransformMode('translate'));
     document.getElementById('toggleRotate').addEventListener('click', () => setTransformMode('rotate'));
     document.getElementById('deleteObj').addEventListener('click', deleteSelected);
+    document.getElementById('duplicateBtn').addEventListener('click', duplicateSelected);
     document.getElementById('undoBtn').addEventListener('click', doUndo);
 
-    document.getElementById('toggleTranslate').classList.add('active');
-
-    // Help modal
     const helpModal = document.getElementById('helpModal');
     document.getElementById('helpBtn').addEventListener('click', () => helpModal.classList.add('show'));
     document.getElementById('closeHelp').addEventListener('click', () => helpModal.classList.remove('show'));
@@ -1412,7 +2010,7 @@
     }
     animate();
 
-    // ===== Demo awal (mm) =====
+    // ===== Init =====
     function setupDemo() {
         const demoData = [
             { type: 'box', color: 0xff5733, pos: [-30, 10, 0], size: [20, 20, 20] },
@@ -1426,18 +2024,21 @@
             else geo = new THREE.CylinderGeometry(d.size[0] / 2, d.size[0] / 2, d.size[1], 32);
             const mat = new THREE.MeshStandardMaterial({ color: d.color, roughness: 0.4 });
             const mesh = new THREE.Mesh(geo, mat);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+            mesh.castShadow = true; mesh.receiveShadow = true;
             mesh.position.set(...d.pos);
             mesh.userData.isHole = false;
             mesh.userData.label = d.type === 'box' ? 'Kotak' : (d.type === 'sphere' ? 'Bola' : 'Silinder');
-            scene.add(mesh);
-            objects.push(mesh);
+            scene.add(mesh); objects.push(mesh);
         });
         colorIndex = 3;
         setStatus('Mode: Pilih | Objek: -');
     }
-    setupDemo();
+
+    if (!loadFromLocalStorage()) setupDemo();
+    else showToast('📂 Scene terakhir dimuat', 2000);
+
+    window.addEventListener('beforeunload', saveToLocalStorage);
+
 </script>
 
 </body>
